@@ -269,15 +269,24 @@
         function registerPlayer() {
             if (!socket || socket.readyState !== WebSocket.OPEN) return;
             
-            socket.send(JSON.stringify({
-                type: 'register',
-                name: playerName,
-                x: camera.position.x,
-                y: camera.position.y,
-                z: camera.position.z,
-                color: playerColor,
-                rotation: yaw
-            }));
+            // If we already have a session ID, send an update instead of registering again
+            if (sessionId) {
+                socket.send(JSON.stringify({
+                    type: 'rename',
+                    id: sessionId,
+                    name: playerName
+                }));
+            } else {
+                socket.send(JSON.stringify({
+                    type: 'register',
+                    name: playerName,
+                    x: camera.position.x,
+                    y: camera.position.y,
+                    z: camera.position.z,
+                    color: playerColor,
+                    rotation: yaw
+                }));
+            }
         }
         
         function updatePlayerPosition() {
