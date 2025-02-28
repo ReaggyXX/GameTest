@@ -38,6 +38,14 @@ wss.on('connection', (ws) => {
                 broadcastPlayers();
                 break;
 
+            case 'rename':
+                if (playerId && players.has(playerId)) {
+                    const player = players.get(playerId);
+                    player.name = message.name;
+                    broadcastPlayers();
+                }
+                break;
+
             case 'update':
                 if (playerId && players.has(playerId)) {
                     const player = players.get(playerId);
