@@ -56,6 +56,25 @@ wss.on('connection', (ws) => {
                     broadcastPlayers();
                 }
                 break;
+
+            case 'chat':
+                if (playerId) {
+                    const player = players.get(playerId);
+                    const chatData = {
+                        type: 'chat',
+                        id: playerId,
+                        name: player.name,
+                        message: message.message
+                    };
+                    
+                    // Broadcast chat message to all clients
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify(chatData));
+                        }
+                    });
+                }
+                break;
         }
     });
 
