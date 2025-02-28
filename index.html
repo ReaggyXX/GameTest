@@ -801,75 +801,118 @@
         // Look controls
         const lookSensitivity = 0.05;
 
+        // Replace the existing look control event listeners with these improved versions
         lookUp.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            function updateLook() {
-                if (e.target.matches(':active')) {
-                    pitch -= lookSensitivity;
-                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-                    requestAnimationFrame(updateLook);
-                }
+            const lookInterval = setInterval(function() {
+                pitch -= lookSensitivity;
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            }, 16); // ~60fps
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
             }
-            updateLook();
+            
+            lookUp.addEventListener('touchend', stopLooking);
+            lookUp.addEventListener('touchcancel', stopLooking);
         });
 
         lookDown.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            function updateLook() {
-                if (e.target.matches(':active')) {
-                    pitch += lookSensitivity;
-                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-                    requestAnimationFrame(updateLook);
-                }
+            const lookInterval = setInterval(function() {
+                pitch += lookSensitivity;
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
             }
-            updateLook();
+            
+            lookDown.addEventListener('touchend', stopLooking);
+            lookDown.addEventListener('touchcancel', stopLooking);
         });
 
         lookLeft.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            function updateLook() {
-                if (e.target.matches(':active')) {
-                    yaw += lookSensitivity;
-                    requestAnimationFrame(updateLook);
-                }
+            const lookInterval = setInterval(function() {
+                yaw += lookSensitivity;
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
             }
-            updateLook();
+            
+            lookLeft.addEventListener('touchend', stopLooking);
+            lookLeft.addEventListener('touchcancel', stopLooking);
         });
 
         lookRight.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            function updateLook() {
-                if (e.target.matches(':active')) {
-                    yaw -= lookSensitivity;
-                    requestAnimationFrame(updateLook);
-                }
+            const lookInterval = setInterval(function() {
+                yaw -= lookSensitivity;
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
             }
-            updateLook();
+            
+            lookRight.addEventListener('touchend', stopLooking);
+            lookRight.addEventListener('touchcancel', stopLooking);
         });
 
-        // Also support mouse clicks for desktop testing
-        mobileUp.addEventListener('mousedown', function() { moveForward = true; });
-        mobileUp.addEventListener('mouseup', function() { moveForward = false; });
-        mobileUp.addEventListener('mouseleave', function() { moveForward = false; });
-
-        mobileDown.addEventListener('mousedown', function() { moveBackward = true; });
-        mobileDown.addEventListener('mouseup', function() { moveBackward = false; });
-        mobileDown.addEventListener('mouseleave', function() { moveBackward = false; });
-
-        mobileLeft.addEventListener('mousedown', function() { moveLeft = true; });
-        mobileLeft.addEventListener('mouseup', function() { moveLeft = false; });
-        mobileLeft.addEventListener('mouseleave', function() { moveLeft = false; });
-
-        mobileRight.addEventListener('mousedown', function() { moveRight = true; });
-        mobileRight.addEventListener('mouseup', function() { moveRight = false; });
-        mobileRight.addEventListener('mouseleave', function() { moveRight = false; });
-
-        mobileJump.addEventListener('mousedown', function() {
-            if (canJump) {
-                velocity = 0.5;
-                canJump = false;
-                isJumping = true;
+        // Also update the mouse controls for desktop testing
+        lookUp.addEventListener('mousedown', function() {
+            const lookInterval = setInterval(function() {
+                pitch -= lookSensitivity;
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
             }
+            
+            lookUp.addEventListener('mouseup', stopLooking);
+            lookUp.addEventListener('mouseleave', stopLooking);
+        });
+
+        lookDown.addEventListener('mousedown', function() {
+            const lookInterval = setInterval(function() {
+                pitch += lookSensitivity;
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
+            }
+            
+            lookDown.addEventListener('mouseup', stopLooking);
+            lookDown.addEventListener('mouseleave', stopLooking);
+        });
+
+        lookLeft.addEventListener('mousedown', function() {
+            const lookInterval = setInterval(function() {
+                yaw += lookSensitivity;
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
+            }
+            
+            lookLeft.addEventListener('mouseup', stopLooking);
+            lookLeft.addEventListener('mouseleave', stopLooking);
+        });
+
+        lookRight.addEventListener('mousedown', function() {
+            const lookInterval = setInterval(function() {
+                yaw -= lookSensitivity;
+            }, 16);
+            
+            function stopLooking() {
+                clearInterval(lookInterval);
+            }
+            
+            lookRight.addEventListener('mouseup', stopLooking);
+            lookRight.addEventListener('mouseleave', stopLooking);
         });
 
         // Update info text to include mobile controls info
