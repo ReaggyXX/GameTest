@@ -5,8 +5,13 @@ const app = express();
 const server = require('http').createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Serve static files from the root directory
+app.use(express.static('./'));
+
 // Serve the game client
-app.use(express.static('public'));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Store players
 const players = new Map();
