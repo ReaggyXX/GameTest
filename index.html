@@ -1526,7 +1526,7 @@
                 );
                 
                 if (distanceToEnemy < 3) { // Attack range
-                    // Deal damage based on player strength
+                    // Deal damage to player
                     enemy.health -= playerCharacter.strength / 2;
                     
                     // Show damage number above enemy
@@ -1946,13 +1946,19 @@
             }
         });
 
-        // Replace the current skill system initialization with this simpler approach
+        // Replace the current skill system initialization with this approach
         // Initialize skill system
         let skillSystem = null;
 
+        // Add a script tag for skills.js
+        const skillScript = document.createElement('script');
+        skillScript.src = 'skills.js';
+        document.body.appendChild(skillScript);
+
+        // Function to initialize skills
         function initSkillSystem() {
-            // Make sure character exists
-            if (window.playerCharacter) {
+            // Check if both the character and skill system classes are available
+            if (window.playerCharacter && window.SkillSystem) {
                 // Create skill system
                 skillSystem = new SkillSystem(playerCharacter);
                 
@@ -1960,22 +1966,29 @@
                 skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
                 
                 logDebug("Skill system initialized");
-            } else {
-                logDebug("Failed to initialize skill system - character not found");
+                return true;
+            }
+            return false;
+        }
+
+        // Try to initialize skills periodically until successful
+        let skillInitAttempts = 0;
+        const maxSkillInitAttempts = 10;
+
+        function tryInitSkills() {
+            if (skillInitAttempts >= maxSkillInitAttempts) {
+                logDebug("Failed to initialize skill system after multiple attempts");
+                return;
+            }
+            
+            if (!initSkillSystem()) {
+                skillInitAttempts++;
+                setTimeout(tryInitSkills, 500);
             }
         }
 
-        // Call this after character is fully initialized
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add a script tag for skills.js
-            const skillScript = document.createElement('script');
-            skillScript.src = 'skills.js';
-            skillScript.onload = function() {
-                // Initialize skills after the script is loaded
-                setTimeout(initSkillSystem, 1000); // Delay to ensure character is loaded
-            };
-            document.body.appendChild(skillScript);
-        });
+        // Start trying to initialize skills after a short delay
+        setTimeout(tryInitSkills, 1000);
     </script>
 </body>
 </html>
