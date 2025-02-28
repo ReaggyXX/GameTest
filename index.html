@@ -81,6 +81,9 @@
     </style>
 </head>
 <body>
+    <div id="versionInfo" style="position: absolute; top: 5px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.5); color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; z-index: 100;">
+        Version 0.1
+    </div>
     <div id="info">
         WASD to move, Mouse to look around
         <div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>
@@ -594,6 +597,9 @@
                 lastCharacterUpdateTime = elapsedTime;
             }
             
+            // Update enemies
+            updateEnemies(delta);
+            
             // Update camera rotation from mouse
             camera.rotation.order = 'YXZ';
             camera.rotation.y = yaw;
@@ -999,6 +1005,313 @@
             document.getElementById('info').innerHTML = 
                 'Use on-screen controls to move and look around<br>' +
                 '<div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>';
+        }
+
+        // Enemy system
+        const enemies = [];
+        const MAX_ENEMIES = 5;
+        const ENEMY_SPAWN_INTERVAL = 15000; // 15 seconds
+        const ENEMY_CHASE_RADIUS = 10;
+        const ENEMY_ATTACK_RADIUS = 2;
+        const ENEMY_ATTACK_DAMAGE = 5;
+        const ENEMY_ATTACK_COOLDOWN = 1000; // 1 second
+
+        function createEnemy() {
+            // Random position away from player
+            let x, z;
+            do {
+                x = Math.random() * 80 - 40; // -40 to 40
+                z = Math.random() * 80 - 40; // -40 to 40
+            } while (Math.sqrt(Math.pow(x - camera.position.x, 2) + Math.pow(z - camera.position.z, 2)) < 15);
+            
+            // Create enemy mesh
+            const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 8);
+            const headGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+            
+            const material = new THREE.MeshStandardMaterial({ color: 0x880000 });
+            
+            const body = new THREE.Mesh(bodyGeometry, material);
+            const head = new THREE.Mesh(headGeometry, material);
+            
+            head.position.y = 1.2;
+            
+            // Create a group to hold the body parts
+            const enemyGroup = new THREE.Group();
+            enemyGroup.add(body);
+            enemyGroup.add(head);
+            
+            // Add enemy label
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            context.font = '24px Arial';
+            context.fillStyle = '#ff0000';
+            context.textAlign = 'center';
+            context.fillText("Enemy", 128, 24);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const labelMaterial = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true
+            });
+            const label = new THREE.Sprite(labelMaterial);
+            label.position.y = 2.5;
+            label.scale.set(5, 1.25, 1);
+            
+            enemyGroup.add(label);
+            
+            // Position the enemy
+            enemyGroup.position.set(x, 2, z);
+            scene.add(enemyGroup);
+            
+            // Create enemy data
+            const enemy = {
+                mesh: enemyGroup,
+                health: 30,
+                speed: 2,
+                lastAttackTime: 0,
+                isDead: false
+            };
+            
+            enemies.push(enemy);
+            return enemy;
+        }
+
+        // Spawn enemies periodically
+        function spawnEnemies() {
+            if (enemies.length < MAX_ENEMIES) {
+                createEnemy();
+            }
+            
+            // Schedule next spawn
+            setTimeout(spawnEnemies, ENEMY_SPAWN_INTERVAL);
+        }
+
+        // Start spawning enemies
+        setTimeout(spawnEnemies, 5000); // Start after 5 seconds
+
+        // Update enemies in animation loop
+        function updateEnemies(delta) {
+            const now = Date.now();
+            
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                if (enemy.isDead) {
+                    // Remove dead enemies
+                    scene.remove(enemy.mesh);
+                    enemies.splice(i, 1);
+                    continue;
+                }
+                
+                // Calculate distance to player
+                const distanceToPlayer = Math.sqrt(
+                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) + 
+                    Math.pow(enemy.mesh.position.z - camera.position.z, 2)
+                );
+                
+                // Chase player if within radius
+                if (distanceToPlayer < ENEMY_CHASE_RADIUS) {
+                    // Calculate direction to player
+                    const directionX = camera.position.x - enemy.mesh.position.x;
+                    const directionZ = camera.position.z - enemy.mesh.position.z;
+                    
+                    // Normalize direction
+                    const length = Math.sqrt(directionX * directionX + directionZ * directionZ);
+                    const normalizedX = directionX / length;
+                    const normalizedZ = directionZ / length;
+                    
+                    // Move enemy towards player
+                    enemy.mesh.position.x += normalizedX * enemy.speed * delta;
+                    enemy.mesh.position.z += normalizedZ * enemy.speed * delta;
+                    
+                    // Rotate enemy to face player
+                    enemy.mesh.rotation.y = Math.atan2(directionX, directionZ);
+                    
+                    // Attack player if close enough and cooldown is over
+                    if (distanceToPlayer < ENEMY_ATTACK_RADIUS && now - enemy.lastAttackTime > ENEMY_ATTACK_COOLDOWN) {
+                        // Deal damage to player
+                        const damageDealt = playerCharacter.takeDamage(ENEMY_ATTACK_DAMAGE);
+                        
+                        // Show damage indicator
+                        showDamageIndicator(damageDealt);
+                        
+                        // Update attack time
+                        enemy.lastAttackTime = now;
+                        
+                        // Update UI
+                        updateCharacterStatsUI();
+                    }
+                }
+            }
+        }
+
+        // Show damage indicator when player takes damage
+        function showDamageIndicator(amount) {
+            const damageDiv = document.createElement('div');
+            damageDiv.textContent = `-${amount}`;
+            damageDiv.style.position = 'absolute';
+            damageDiv.style.color = 'red';
+            damageDiv.style.fontSize = '24px';
+            damageDiv.style.fontWeight = 'bold';
+            damageDiv.style.textShadow = '2px 2px 0 #000';
+            damageDiv.style.top = '50%';
+            damageDiv.style.left = '50%';
+            damageDiv.style.transform = 'translate(-50%, -50%)';
+            damageDiv.style.pointerEvents = 'none';
+            document.body.appendChild(damageDiv);
+            
+            // Animate the damage indicator
+            let opacity = 1;
+            let posY = 0;
+            
+            const animateDamage = () => {
+                opacity -= 0.02;
+                posY -= 1;
+                
+                damageDiv.style.opacity = opacity;
+                damageDiv.style.transform = `translate(-50%, calc(-50% + ${posY}px))`;
+                
+                if (opacity > 0) {
+                    requestAnimationFrame(animateDamage);
+                } else {
+                    document.body.removeChild(damageDiv);
+                }
+            };
+            
+            requestAnimationFrame(animateDamage);
+        }
+
+        // Add ability to attack enemies
+        let isAttacking = false;
+        document.addEventListener('mousedown', function(event) {
+            if (event.button === 0) { // Left mouse button
+                isAttacking = true;
+                attackEnemies();
+            }
+        });
+
+        document.addEventListener('mouseup', function(event) {
+            if (event.button === 0) { // Left mouse button
+                isAttacking = false;
+            }
+        });
+
+        function attackEnemies() {
+            if (!isAttacking) return;
+            
+            // Find enemies in attack range
+            for (const enemy of enemies) {
+                const distanceToEnemy = Math.sqrt(
+                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) + 
+                    Math.pow(enemy.mesh.position.z - camera.position.z, 2)
+                );
+                
+                if (distanceToEnemy < 3) { // Attack range
+                    // Deal damage based on player strength
+                    enemy.health -= playerCharacter.strength / 2;
+                    
+                    // Show damage number above enemy
+                    showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
+                    
+                    // Check if enemy is dead
+                    if (enemy.health <= 0) {
+                        enemy.isDead = true;
+                        
+                        // Give player experience
+                        const xpGained = 20;
+                        playerCharacter.gainExperience(xpGained);
+                        
+                        // Show XP gained
+                        showXpGainedMessage(xpGained);
+                        
+                        // Update UI
+                        updateCharacterStatsUI();
+                    }
+                }
+            }
+            
+            // Continue attacking if button is still pressed
+            setTimeout(() => {
+                if (isAttacking) {
+                    attackEnemies();
+                }
+            }, 500); // Attack every 500ms
+        }
+
+        // Show damage number above enemy
+        function showEnemyDamageNumber(enemy, amount) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 128;
+            canvas.height = 64;
+            context.font = 'bold 24px Arial';
+            context.fillStyle = '#ff0000';
+            context.textAlign = 'center';
+            context.fillText(Math.floor(amount), 64, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.y = 3;
+            sprite.scale.set(2, 1, 1);
+            
+            enemy.mesh.add(sprite);
+            
+            // Animate the damage number
+            let posY = 0;
+            const animateDamage = () => {
+                posY += 0.05;
+                sprite.position.y = 3 + posY;
+                sprite.material.opacity -= 0.02;
+                
+                if (sprite.material.opacity > 0) {
+                    requestAnimationFrame(animateDamage);
+                } else {
+                    enemy.mesh.remove(sprite);
+                }
+            };
+            
+            requestAnimationFrame(animateDamage);
+        }
+
+        // Show XP gained message
+        function showXpGainedMessage(amount) {
+            const xpDiv = document.createElement('div');
+            xpDiv.textContent = `+${amount} XP`;
+            xpDiv.style.position = 'absolute';
+            xpDiv.style.color = '#00ff00';
+            xpDiv.style.fontSize = '20px';
+            xpDiv.style.fontWeight = 'bold';
+            xpDiv.style.textShadow = '1px 1px 0 #000';
+            xpDiv.style.bottom = '100px';
+            xpDiv.style.right = '20px';
+            xpDiv.style.pointerEvents = 'none';
+            document.body.appendChild(xpDiv);
+            
+            // Animate the XP message
+            let opacity = 1;
+            let posY = 0;
+            
+            const animateXp = () => {
+                opacity -= 0.01;
+                posY -= 0.5;
+                
+                xpDiv.style.opacity = opacity;
+                xpDiv.style.transform = `translateY(${posY}px)`;
+                
+                if (opacity > 0) {
+                    requestAnimationFrame(animateXp);
+                } else {
+                    document.body.removeChild(xpDiv);
+                }
+            };
+            
+            requestAnimationFrame(animateXp);
         }
     </script>
 </body>
