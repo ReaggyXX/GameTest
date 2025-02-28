@@ -205,6 +205,7 @@
         let playerColor = parseInt(localStorage.getItem('playerColor')) || playerColors[Math.floor(Math.random() * playerColors.length)];
         let sessionId = null;
         let isConnected = false;
+        let socket = null;
         
         // Connection status
         const statusIndicator = document.getElementById('statusIndicator');
@@ -222,115 +223,103 @@
         });
         
         // Server communication
-        async function registerPlayer() {
-            try {
-                const response = await fetch('register_player.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `name=${encodeURIComponent(playerName)}&x=${camera.position.x}&y=${camera.position.y}&z=${camera.position.z}&color=${playerColor}&rotation=${yaw}`
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    sessionId = data.session_id;
-                    localStorage.setItem('sessionId', sessionId);
-                    isConnected = true;
-                    statusIndicator.classList.add('online');
-                    statusText.textContent = 'Connected';
-                    console.log('Registered with server, session ID:', sessionId);
-                } else {
-                    console.error('Failed to register:', data.message);
-                    statusText.textContent = 'Failed to connect: ' + data.message;
-                }
-            } catch (error) {
-                console.error('Error registering player:', error);
-                statusText.textContent = 'Connection error';
-            }
-        }
-        
-        async function updatePlayerPosition() {
-            if (!sessionId || !isConnected) return;
+        function connectWebSocket() {
+            // Get the current host and use secure WebSocket if on HTTPS
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
             
-            try {
-                const response = await fetch('update_position.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `session_id=${sessionId}&x=${camera.position.x}&y=${camera.position.y}&z=${camera.position.z}&rotation=${yaw}`
-                });
-                
-                const data = await response.json();
-                if (!data.success && data.message === 'Too many requests') {
-                    // Silently ignore rate limiting
-                    return;
-                }
-            } catch (error) {
-                console.error('Error updating position:', error);
-                isConnected = false;
-                statusIndicator.classList.remove('online');
-                statusText.textContent = 'Connection lost';
-                setTimeout(reconnect, 3000);
-            }
-        }
-        
-        async function getPlayers() {
-            try {
-                const response = await fetch('get_players.php');
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Clear old players that aren't in the new data
-                    for (const name in players) {
-                        if (!data.players[name] && name !== playerName) {
-                            delete players[name];
-                        }
-                    }
-                    
-                    // Update or add players
-                    for (const name in data.players) {
-                        if (name !== playerName) {
-                            const player = data.players[name];
-                            players[name] = {
-                                x: parseFloat(player.x),
-                                y: parseFloat(player.y),
-                                z: parseFloat(player.z),
-                                color: parseInt(player.color),
-                                rotation: parseFloat(player.rotation)
-                            };
-                        }
-                    }
-                    
-                    // If we're connected but we've been dropped from the server, reconnect
-                    if (isConnected && !data.players[playerName]) {
-                        console.log('Player dropped from server, reconnecting...');
-                        registerPlayer();
-                    }
-                    
-                    updatePlayerList();
-                    if (!isConnected) {
-                        isConnected = true;
-                        statusIndicator.classList.add('online');
-                        statusText.textContent = 'Connected';
-                    }
-                } else {
-                    console.error('Failed to get players:', data.message);
-                }
-            } catch (error) {
-                console.error('Error getting players:', error);
-                isConnected = false;
-                statusIndicator.classList.remove('online');
-                statusText.textContent = 'Connection lost';
-            }
-        }
-        
-        function reconnect() {
-            if (!isConnected) {
-                console.log('Attempting to reconnect...');
+            statusText.textContent = 'Connecting...';
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function() {
+                console.log('WebSocket connected');
+                isConnected = true;
+                statusIndicator.classList.add('online');
+                statusText.textContent = 'Connected';
                 registerPlayer();
-            }
+            };
+            
+            socket.onclose = function() {
+                console.log('WebSocket disconnected');
+                isConnected = false;
+                statusIndicator.classList.remove('online');
+                statusText.textContent = 'Disconnected';
+                setTimeout(connectWebSocket, 3000); // Try to reconnect
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                isConnected = false;
+                statusIndicator.classList.remove('online');
+                statusText.textContent = 'Connection error';
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'registered') {
+                    sessionId = data.id;
+                    console.log('Registered with server, session ID:', sessionId);
+                } else if (data.type === 'players') {
+                    updatePlayersList(data.players);
+                }
+            };
+        }
+        
+        function registerPlayer() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+            
+            socket.send(JSON.stringify({
+                type: 'register',
+                name: playerName,
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                color: playerColor,
+                rotation: yaw
+            }));
+        }
+        
+        function updatePlayerPosition() {
+            if (!socket || socket.readyState !== WebSocket.OPEN || !sessionId) return;
+            
+            socket.send(JSON.stringify({
+                type: 'update',
+                id: sessionId,
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                rotation: yaw
+            }));
+        }
+        
+        function updatePlayersList(playersList) {
+            // Clear old players
+            players = {};
+            
+            // Update players from server data
+            playersList.forEach(player => {
+                if (player.id !== sessionId) {
+                    players[player.name] = {
+                        x: player.x,
+                        y: player.y,
+                        z: player.z,
+                        color: player.color,
+                        rotation: player.rotation
+                    };
+                }
+            });
+            
+            // Add yourself to the players list
+            players[playerName] = {
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                color: playerColor,
+                rotation: yaw
+            };
+            
+            updatePlayerList();
         }
         
         function updatePlayerMeshes() {
@@ -490,35 +479,22 @@
         updatePlayerList();
         
         // Start server communication
-        registerPlayer();
-        
-        // Poll for player updates
-        setInterval(getPlayers, 3000);
+        connectWebSocket();
         
         // Handle page visibility changes
         document.addEventListener('visibilitychange', function() {
             if (document.visibilityState === 'visible') {
                 // When tab becomes active again, reconnect if needed
                 if (!isConnected) {
-                    reconnect();
+                    connectWebSocket();
                 }
             }
         });
         
         // Clean up on page unload
-        window.addEventListener('beforeunload', async function() {
-            if (sessionId) {
-                try {
-                    await fetch('logout_player.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `session_id=${sessionId}`
-                    });
-                } catch (e) {
-                    // Ignore errors during page unload
-                }
+        window.addEventListener('beforeunload', function() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close();
             }
         });
     </script>
