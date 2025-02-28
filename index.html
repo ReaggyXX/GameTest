@@ -1243,8 +1243,241 @@
             }
         });
 
+        // Create a weapon swing effect
+        function createSwingEffect() {
+            // Create a curved blade shape
+            const points = [];
+            for (let i = 0; i <= 5; i++) {
+                const angle = (i / 5) * Math.PI;
+                points.push(new THREE.Vector3(
+                    Math.cos(angle) * 2,
+                    Math.sin(angle) * 2,
+                    0
+                ));
+            }
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x00ffff, 
+                linewidth: 3,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            const swing = new THREE.Line(geometry, material);
+            
+            // Position in front of player
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            
+            swing.position.copy(camera.position);
+            swing.position.y -= 0.5; // Position slightly below eye level
+            swing.position.addScaledVector(direction, 2); // Position in front of player
+            
+            // Rotate to face the direction of attack
+            swing.lookAt(
+                camera.position.x + direction.x * 10,
+                camera.position.y + direction.y * 10,
+                camera.position.z + direction.z * 10
+            );
+            
+            // Add to scene
+            scene.add(swing);
+            
+            // Animate and remove
+            let scale = 0.1;
+            const animateSwing = () => {
+                if (scale >= 1.0) {
+                    swing.material.opacity -= 0.1;
+                    if (swing.material.opacity <= 0) {
+                        scene.remove(swing);
+                        return;
+                    }
+                } else {
+                    scale += 0.1;
+                    swing.scale.set(scale, scale, scale);
+                }
+                
+                // Rotate the swing effect
+                swing.rotation.z += 0.2;
+                
+                requestAnimationFrame(animateSwing);
+            };
+            
+            requestAnimationFrame(animateSwing);
+        }
+
+        // Create particle effect for hits
+        function createHitParticles(position, color = 0xff0000) {
+            const particleCount = 15;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+            
+            // Initialize particles at the hit position
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+                sizes[i] = Math.random() * 0.5 + 0.1;
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            
+            // Create particle material
+            const material = new THREE.PointsMaterial({
+                color: color,
+                size: 0.1,
+                transparent: true,
+                opacity: 1.0,
+                sizeAttenuation: true
+            });
+            
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            
+            // Particle velocities
+            const velocities = [];
+            for (let i = 0; i < particleCount; i++) {
+                velocities.push({
+                    x: (Math.random() - 0.5) * 2,
+                    y: Math.random() * 2 + 1,
+                    z: (Math.random() - 0.5) * 2
+                });
+            }
+            
+            // Animate particles
+            let frame = 0;
+            const animateParticles = () => {
+                frame++;
+                
+                const positions = particles.geometry.attributes.position.array;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    // Update positions based on velocity
+                    positions[i * 3] += velocities[i].x * 0.1;
+                    positions[i * 3 + 1] += velocities[i].y * 0.1;
+                    positions[i * 3 + 2] += velocities[i].z * 0.1;
+                    
+                    // Apply gravity
+                    velocities[i].y -= 0.05;
+                }
+                
+                particles.geometry.attributes.position.needsUpdate = true;
+                
+                // Fade out
+                particles.material.opacity -= 0.02;
+                
+                if (particles.material.opacity > 0) {
+                    requestAnimationFrame(animateParticles);
+                } else {
+                    scene.remove(particles);
+                }
+            };
+            
+            requestAnimationFrame(animateParticles);
+        }
+
+        // Add ambient environmental particles
+        function createAmbientParticles() {
+            const particleCount = 200;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            
+            // Distribute particles in a large area around the scene
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 1] = Math.random() * 20 + 0.5;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            // Create particle material - glowing dust particles
+            const material = new THREE.PointsMaterial({
+                color: 0xffffaa,
+                size: 0.1,
+                transparent: true,
+                opacity: 0.6,
+                sizeAttenuation: true
+            });
+            
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            
+            // Slowly animate ambient particles
+            function animateAmbientParticles() {
+                const positions = particles.geometry.attributes.position.array;
+                const time = Date.now() * 0.0001;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    // Gentle wave motion
+                    positions[i * 3 + 1] += Math.sin(time + i * 0.1) * 0.01;
+                    
+                    // Slight horizontal drift
+                    positions[i * 3] += Math.sin(time * 0.5 + i) * 0.01;
+                    positions[i * 3 + 2] += Math.cos(time * 0.5 + i) * 0.01;
+                    
+                    // Reset particles that drift too far
+                    if (positions[i * 3 + 1] < 0.1) positions[i * 3 + 1] = 20;
+                }
+                
+                particles.geometry.attributes.position.needsUpdate = true;
+                
+                // Pulse opacity
+                particles.material.opacity = 0.3 + Math.sin(time * 2) * 0.1;
+            }
+            
+            // Add to animation loop
+            return animateAmbientParticles;
+        }
+
+        // Add fog to the scene
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
+
+        // Create a skybox
+        function createSkybox() {
+            const geometry = new THREE.BoxGeometry(500, 500, 500);
+            const materialArray = [];
+            
+            const textureLoader = new THREE.TextureLoader();
+            const skyboxTextures = [
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/px.jpg', // right
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nx.jpg', // left
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/py.jpg', // top
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/ny.jpg', // bottom
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/pz.jpg', // front
+                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nz.jpg'  // back
+            ];
+            
+            // Create materials with skybox textures
+            for (let i = 0; i < 6; i++) {
+                materialArray.push(new THREE.MeshBasicMaterial({
+                    map: textureLoader.load(skyboxTextures[i]),
+                    side: THREE.BackSide
+                }));
+            }
+            
+            const skybox = new THREE.Mesh(geometry, materialArray);
+            scene.add(skybox);
+            
+            logDebug("Skybox added");
+        }
+
+        // Initialize ambient particles
+        const updateAmbientParticles = createAmbientParticles();
+        logDebug("Ambient particles added");
+
+        // Create skybox
+        createSkybox();
+
+        // Modify the attackEnemies function to add visual effects
         function attackEnemies() {
             if (!isAttacking) return;
+            
+            // Create swing effect
+            createSwingEffect();
             
             // Find enemies in attack range
             for (const enemy of enemies) {
@@ -1260,6 +1493,9 @@
                     // Show damage number above enemy
                     showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
                     
+                    // Create hit particles at enemy position
+                    createHitParticles(enemy.mesh.position);
+                    
                     // Check if enemy is dead
                     if (enemy.health <= 0) {
                         enemy.isDead = true;
@@ -1270,6 +1506,9 @@
                         
                         // Show XP gained
                         showXpGainedMessage(xpGained);
+                        
+                        // Create death effect
+                        createDeathEffect(enemy.mesh.position);
                         
                         // Update UI
                         updateCharacterStatsUI();
@@ -1283,6 +1522,41 @@
                     attackEnemies();
                 }
             }, 500); // Attack every 500ms
+        }
+
+        // Create death effect for enemies
+        function createDeathEffect(position) {
+            // Create explosion particles
+            createHitParticles(position, 0xffaa00);
+            
+            // Create larger explosion
+            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xff6600,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            const explosion = new THREE.Mesh(geometry, material);
+            explosion.position.copy(position);
+            scene.add(explosion);
+            
+            // Animate explosion
+            let scale = 0.1;
+            const animateExplosion = () => {
+                scale += 0.2;
+                explosion.scale.set(scale, scale, scale);
+                
+                explosion.material.opacity -= 0.05;
+                
+                if (explosion.material.opacity > 0) {
+                    requestAnimationFrame(animateExplosion);
+                } else {
+                    scene.remove(explosion);
+                }
+            };
+            
+            requestAnimationFrame(animateExplosion);
         }
 
         // Show damage number above enemy
