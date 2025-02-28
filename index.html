@@ -148,56 +148,200 @@
         directionalLight.position.set(1, 1, 1);
         scene.add(directionalLight);
         
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x336633,
-            side: THREE.DoubleSide
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        scene.add(ground);
+        // Terrain
+        const terrainSize = 500;
+        const terrainResolution = 128;
+        const terrainGeometry = new THREE.PlaneGeometry(
+            terrainSize, 
+            terrainSize, 
+            terrainResolution - 1, 
+            terrainResolution - 1
+        );
         
-        // Add buildings
-        function createBuilding(x, z, width, height, depth, color) {
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({ color: color });
-            const building = new THREE.Mesh(geometry, material);
-            building.position.set(x, height/2, z);
-            scene.add(building);
-            return building;
+        // Generate heightmap
+        function generateTerrain() {
+            const positions = terrainGeometry.attributes.position.array;
+            const simplex = new SimplexNoise();
+            
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const z = positions[i + 2];
+                
+                // Multiple layers of noise for more natural terrain
+                let height = 0;
+                height += 15 * simplex.noise2D(x / 100, z / 100); // Large features
+                height += 5 * simplex.noise2D(x / 50, z / 50);    // Medium features
+                height += 2 * simplex.noise2D(x / 20, z / 20);    // Small features
+                
+                // Flatten the center area a bit for player spawn
+                const distFromCenter = Math.sqrt(x * x + z * z);
+                const flatteningFactor = Math.min(1, distFromCenter / 30);
+                
+                positions[i + 1] = height * flatteningFactor;
+            }
+            
+            terrainGeometry.computeVertexNormals();
+            return positions;
         }
         
-        // Create some buildings
-        createBuilding(-10, -10, 5, 8, 5, 0x8888ff);
-        createBuilding(10, -8, 4, 5, 4, 0xff8888);
-        createBuilding(-8, 12, 6, 10, 6, 0x88ff88);
-        createBuilding(12, 10, 8, 15, 8, 0xffff88);
+        // Create terrain material with texture
+        const terrainMaterial = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            flatShading: false
+        });
         
-        // Add trees
-        function createTree(x, z) {
+        // Add color based on height
+        function colorTerrain(positions) {
+            const colors = [];
+            
+            for (let i = 0; i < positions.length; i += 3) {
+                const height = positions[i + 1];
+                
+                let color = new THREE.Color();
+                
+                if (height < -5) {
+                    // Deep water
+                    color.setRGB(0.1, 0.3, 0.6);
+                } else if (height < 0) {
+                    // Shallow water
+                    color.setRGB(0.2, 0.5, 0.8);
+                } else if (height < 1) {
+                    // Sand
+                    color.setRGB(0.9, 0.8, 0.6);
+                } else if (height < 5) {
+                    // Grass
+                    color.setRGB(0.2, 0.6, 0.2);
+                } else if (height < 10) {
+                    // Forest
+                    color.setRGB(0.1, 0.4, 0.1);
+                } else {
+                    // Mountain
+                    const gray = 0.4 + 0.4 * (Math.min(height, 20) / 20);
+                    color.setRGB(gray, gray, gray);
+                }
+                
+                colors.push(color.r, color.g, color.b);
+            }
+            
+            terrainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        }
+        
+        // Generate and color the terrain
+        const terrainPositions = generateTerrain();
+        colorTerrain(terrainPositions);
+        
+        // Create the terrain mesh
+        const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+        terrain.rotation.x = -Math.PI / 2;
+        terrain.position.y = -2; // Lower the terrain a bit
+        scene.add(terrain);
+        
+        // Add a water plane
+        const waterGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize);
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x0099ff,
+            transparent: true,
+            opacity: 0.7
+        });
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -1; // Water level
+        scene.add(water);
+        
+        // Add forests (clusters of trees)
+        function createForest(centerX, centerZ, numTrees, radius) {
+            for (let i = 0; i < numTrees; i++) {
+                // Random position within the radius
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * radius;
+                const x = centerX + Math.cos(angle) * distance;
+                const z = centerZ + Math.sin(angle) * distance;
+                
+                // Sample height at this position
+                const sampleX = (x / terrainSize) * terrainResolution;
+                const sampleZ = (z / terrainSize) * terrainResolution;
+                const idx = Math.floor(sampleX) + Math.floor(sampleZ) * terrainResolution;
+                let height = 0;
+                
+                if (idx >= 0 && idx < terrainPositions.length / 3) {
+                    height = terrainPositions[idx * 3 + 1];
+                }
+                
+                // Only place trees on appropriate terrain
+                if (height > 1 && height < 10) {
+                    createTree(x, z, height - 2);
+                }
+            }
+        }
+        
+        // Update tree creation function to use the terrain height
+        function createTree(x, z, groundHeight = 0) {
             // Tree trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
+            const trunkHeight = 2 + Math.random() * 3;
+            const trunkGeometry = new THREE.CylinderGeometry(0.2 + Math.random() * 0.3, 0.3 + Math.random() * 0.5, trunkHeight, 8);
             const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
             const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.set(x, 1, z);
+            trunk.position.set(x, groundHeight + trunkHeight/2, z);
             
-            // Tree top
-            const topGeometry = new THREE.ConeGeometry(2, 4, 8);
-            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-            const top = new THREE.Mesh(topGeometry, topMaterial);
-            top.position.set(x, 4, z);
+            // Tree top (multiple layers for more realistic trees)
+            const layers = 2 + Math.floor(Math.random() * 3);
+            const treeGroup = new THREE.Group();
+            treeGroup.add(trunk);
             
-            scene.add(trunk);
-            scene.add(top);
+            const treeColor = new THREE.Color(0.1 + Math.random() * 0.1, 0.4 + Math.random() * 0.2, 0.1);
+            
+            for (let i = 0; i < layers; i++) {
+                const topHeight = 1.5 + Math.random();
+                const topRadius = 1 + Math.random() * (layers - i) * 0.4;
+                const topGeometry = new THREE.ConeGeometry(topRadius, topHeight, 8);
+                const topMaterial = new THREE.MeshStandardMaterial({ color: treeColor });
+                const top = new THREE.Mesh(topGeometry, topMaterial);
+                top.position.set(x, groundHeight + trunkHeight + i * topHeight * 0.7, z);
+                treeGroup.add(top);
+            }
+            
+            scene.add(treeGroup);
+            return treeGroup;
         }
         
-        // Create some trees
-        createTree(-15, 0);
-        createTree(15, 5);
-        createTree(0, 15);
-        createTree(-5, -15);
-        createTree(20, -20);
+        // Create mountain ranges
+        function createMountainRange(centerX, centerZ, numPeaks, radius, maxHeight) {
+            for (let i = 0; i < numPeaks; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * radius;
+                const x = centerX + Math.cos(angle) * distance;
+                const z = centerZ + Math.sin(angle) * distance;
+                const height = maxHeight * 0.5 + Math.random() * maxHeight * 0.5;
+                
+                createMountainPeak(x, z, height);
+            }
+        }
+        
+        function createMountainPeak(x, z, height) {
+            const radiusTop = 0;
+            const radiusBottom = 10 + Math.random() * 15;
+            const mountainGeometry = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 8);
+            
+            // Create gradient material for mountain
+            const mountainColor = new THREE.Color(0.4 + Math.random() * 0.2, 0.4 + Math.random() * 0.2, 0.4 + Math.random() * 0.2);
+            const mountainMaterial = new THREE.MeshStandardMaterial({ color: mountainColor });
+            
+            const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+            mountain.position.set(x, height/2 - 2, z); // Adjust height to match terrain
+            scene.add(mountain);
+        }
+        
+        // Create several forests
+        createForest(-50, -50, 100, 30);
+        createForest(70, 40, 80, 25);
+        createForest(0, 100, 120, 40);
+        createForest(-80, 60, 90, 35);
+        createForest(100, -70, 70, 30);
+        
+        // Create mountain ranges
+        createMountainRange(-100, -100, 5, 40, 50);
+        createMountainRange(120, 80, 7, 50, 60);
+        createMountainRange(-80, 120, 4, 30, 40);
         
         // Movement controls
         let moveForward = false;
@@ -300,9 +444,9 @@
             
             socket.onopen = function() {
                 console.log('WebSocket connected');
-                isConnected = true;
-                statusIndicator.classList.add('online');
-                statusText.textContent = 'Connected';
+                    isConnected = true;
+                    statusIndicator.classList.add('online');
+                    statusText.textContent = 'Connected';
                 registerPlayer();
             };
             
@@ -354,7 +498,7 @@
                     id: sessionId,
                     name: playerName
                 }));
-            } else {
+                } else {
                 socket.send(JSON.stringify({
                     type: 'register',
                     name: playerName,
@@ -532,21 +676,51 @@
             if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
             if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
             
-            // Handle jumping and gravity
+            // Get terrain height at player position
+            const terrainX = (camera.position.x / terrainSize + 0.5) * terrainResolution;
+            const terrainZ = (camera.position.z / terrainSize + 0.5) * terrainResolution;
+            
+            // Find the closest vertices in the terrain
+            const x0 = Math.floor(terrainX);
+            const z0 = Math.floor(terrainZ);
+            const x1 = Math.min(x0 + 1, terrainResolution - 1);
+            const z1 = Math.min(z0 + 1, terrainResolution - 1);
+            
+            // Get heights at the four corners
+            const getHeight = (x, z) => {
+                const idx = (z * terrainResolution + x) * 3 + 1;
+                return terrainPositions[idx];
+            };
+            
+            const h00 = getHeight(x0, z0);
+            const h10 = getHeight(x1, z0);
+            const h01 = getHeight(x0, z1);
+            const h11 = getHeight(x1, z1);
+            
+            // Bilinear interpolation to get height at exact position
+            const fx = terrainX - x0;
+            const fz = terrainZ - z0;
+            
+            const h0 = h00 * (1 - fx) + h10 * fx;
+            const h1 = h01 * (1 - fx) + h11 * fx;
+            const terrainHeight = h0 * (1 - fz) + h1 * fz;
+            
+            // Handle jumping and gravity with terrain height
             if (isJumping) {
                 camera.position.y += velocity;
                 velocity -= gravity * delta * 10;
                 
-                // Check if we've landed
-                if (camera.position.y <= 2) {
-                    camera.position.y = 2;
+                // Check if we've landed on terrain
+                const groundLevel = terrainHeight + 2; // Player height offset
+                if (camera.position.y <= groundLevel) {
+                    camera.position.y = groundLevel;
                     velocity = 0;
                     isJumping = false;
                     canJump = true;
                 }
             } else {
-                // Keep player on the ground when not jumping
-                camera.position.y = 2;
+                // Keep player on the terrain when not jumping
+                camera.position.y = terrainHeight + 2; // Player height offset
             }
             
             // Update server with player position (limit frequency)
