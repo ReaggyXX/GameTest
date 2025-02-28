@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Map with Multiplayer</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #playerName {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            border-radius: 5px;
+        }
+        #playerList {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            padding: 10px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #statusIndicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: red;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .online {
+            background-color: #00ff00 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        WASD to move, Mouse to look around
+        <div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>
+    </div>
+    <div id="playerName">
+        <input type="text" id="nameInput" placeholder="Enter your name">
+        <button id="setName">Set Name</button>
+    </div>
+    <div id="playerList">
+        <h3>Players Online</h3>
+        <ul id="players"></ul>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+        
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 5);
+        
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+        
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x336633,
+            side: THREE.DoubleSide
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+        
+        // Add buildings
+        function createBuilding(x, z, width, height, depth, color) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({ color: color });
+            const building = new THREE.Mesh(geometry, material);
+            building.position.set(x, height/2, z);
+            scene.add(building);
+            return building;
+        }
+        
+        // Create some buildings
+        createBuilding(-10, -10, 5, 8, 5, 0x8888ff);
+        createBuilding(10, -8, 4, 5, 4, 0xff8888);
+        createBuilding(-8, 12, 6, 10, 6, 0x88ff88);
+        createBuilding(12, 10, 8, 15, 8, 0xffff88);
+        
+        // Add trees
+        function createTree(x, z) {
+            // Tree trunk
+            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.set(x, 1, z);
+            
+            // Tree top
+            const topGeometry = new THREE.ConeGeometry(2, 4, 8);
+            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.set(x, 4, z);
+            
+            scene.add(trunk);
+            scene.add(top);
+        }
+        
+        // Create some trees
+        createTree(-15, 0);
+        createTree(15, 5);
+        createTree(0, 15);
+        createTree(-5, -15);
+        createTree(20, -20);
+        
+        // Movement controls
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        
+        document.addEventListener('keydown', onKeyDown, false);
+        document.addEventListener('keyup', onKeyUp, false);
+        
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+            }
+        }
+        
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        }
+        
+        // Mouse look controls
+        let isMouseLocked = false;
+        
+        renderer.domElement.addEventListener('click', function() {
+            if (!isMouseLocked) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+        
+        document.addEventListener('pointerlockchange', function() {
+            isMouseLocked = document.pointerLockElement === renderer.domElement;
+        });
+        
+        let pitch = 0;
+        let yaw = 0;
+        
+        document.addEventListener('mousemove', function(event) {
+            if (isMouseLocked) {
+                yaw -= event.movementX * 0.002;
+                pitch -= event.movementY * 0.002;
+                
+                // Clamp pitch to avoid flipping
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            }
+        });
+        
+        // Multiplayer
+        const playerColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+        let players = {};
+        let playerMeshes = {};
+        let playerName = localStorage.getItem('playerName') || "Player" + Math.floor(Math.random() * 1000);
+        let playerColor = parseInt(localStorage.getItem('playerColor')) || playerColors[Math.floor(Math.random() * playerColors.length)];
+        let sessionId = null;
+        let isConnected = false;
+        
+        // Connection status
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        
+        // Set player name
+        document.getElementById('nameInput').value = playerName;
+        document.getElementById('setName').addEventListener('click', function() {
+            const newName = document.getElementById('nameInput').value.trim();
+            if (newName) {
+                playerName = newName;
+                localStorage.setItem('playerName', playerName);
+                registerPlayer();
+            }
+        });
+        
+        // Server communication
+        async function registerPlayer() {
+            try {
+                const response = await fetch('register_player.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `name=${encodeURIComponent(playerName)}&x=${camera.position.x}&y=${camera.position.y}&z=${camera.position.z}&color=${playerColor}&rotation=${yaw}`
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    sessionId = data.session_id;
+                    localStorage.setItem('sessionId', sessionId);
+                    isConnected = true;
+                    statusIndicator.classList.add('online');
+                    statusText.textContent = 'Connected';
+                    console.log('Registered with server, session ID:', sessionId);
+                } else {
+                    console.error('Failed to register:', data.message);
+                    statusText.textContent = 'Failed to connect: ' + data.message;
+                }
+            } catch (error) {
+                console.error('Error registering player:', error);
+                statusText.textContent = 'Connection error';
+            }
+        }
+        
+        async function updatePlayerPosition() {
+            if (!sessionId || !isConnected) return;
+            
+            try {
+                const response = await fetch('update_position.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `session_id=${sessionId}&x=${camera.position.x}&y=${camera.position.y}&z=${camera.position.z}&rotation=${yaw}`
+                });
+                
+                const data = await response.json();
+                if (!data.success && data.message === 'Too many requests') {
+                    // Silently ignore rate limiting
+                    return;
+                }
+            } catch (error) {
+                console.error('Error updating position:', error);
+                isConnected = false;
+                statusIndicator.classList.remove('online');
+                statusText.textContent = 'Connection lost';
+                setTimeout(reconnect, 3000);
+            }
+        }
+        
+        async function getPlayers() {
+            try {
+                const response = await fetch('get_players.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Clear old players that aren't in the new data
+                    for (const name in players) {
+                        if (!data.players[name] && name !== playerName) {
+                            delete players[name];
+                        }
+                    }
+                    
+                    // Update or add players
+                    for (const name in data.players) {
+                        if (name !== playerName) {
+                            const player = data.players[name];
+                            players[name] = {
+                                x: parseFloat(player.x),
+                                y: parseFloat(player.y),
+                                z: parseFloat(player.z),
+                                color: parseInt(player.color),
+                                rotation: parseFloat(player.rotation)
+                            };
+                        }
+                    }
+                    
+                    // If we're connected but we've been dropped from the server, reconnect
+                    if (isConnected && !data.players[playerName]) {
+                        console.log('Player dropped from server, reconnecting...');
+                        registerPlayer();
+                    }
+                    
+                    updatePlayerList();
+                    if (!isConnected) {
+                        isConnected = true;
+                        statusIndicator.classList.add('online');
+                        statusText.textContent = 'Connected';
+                    }
+                } else {
+                    console.error('Failed to get players:', data.message);
+                }
+            } catch (error) {
+                console.error('Error getting players:', error);
+                isConnected = false;
+                statusIndicator.classList.remove('online');
+                statusText.textContent = 'Connection lost';
+            }
+        }
+        
+        function reconnect() {
+            if (!isConnected) {
+                console.log('Attempting to reconnect...');
+                registerPlayer();
+            }
+        }
+        
+        function updatePlayerMeshes() {
+            // Remove old meshes
+            for (const name in playerMeshes) {
+                if (!players[name]) {
+                    scene.remove(playerMeshes[name]);
+                    delete playerMeshes[name];
+                }
+            }
+            
+            // Update or add meshes
+            for (const name in players) {
+                if (name === playerName) continue; // Skip self
+                
+                const player = players[name];
+                
+                if (!playerMeshes[name]) {
+                    // Create player mesh using cylinder for body and sphere for head
+                    const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5, 8);
+                    const headGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                    
+                    const material = new THREE.MeshStandardMaterial({ color: player.color });
+                    
+                    const body = new THREE.Mesh(bodyGeometry, material);
+                    const head = new THREE.Mesh(headGeometry, material);
+                    
+                    head.position.y = 1.0;
+                    
+                    // Create a group to hold the body parts
+                    const playerGroup = new THREE.Group();
+                    playerGroup.add(body);
+                    playerGroup.add(head);
+                    
+                    // Add name label
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 256;
+                    canvas.height = 64;
+                    context.font = '24px Arial';
+                    context.fillStyle = '#ffffff';
+                    context.textAlign = 'center';
+                    context.fillText(name, 128, 24);
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const labelMaterial = new THREE.SpriteMaterial({
+                        map: texture,
+                        transparent: true
+                    });
+                    const label = new THREE.Sprite(labelMaterial);
+                    label.position.y = 2.5;
+                    label.scale.set(5, 1.25, 1);
+                    
+                    playerGroup.add(label);
+                    
+                    scene.add(playerGroup);
+                    playerMeshes[name] = playerGroup;
+                }
+                
+                // Update position
+                playerMeshes[name].position.set(player.x, player.y, player.z);
+                
+                // Update rotation (assume players look in direction of movement)
+                if (player.rotation !== undefined) {
+                    playerMeshes[name].rotation.y = player.rotation;
+                }
+            }
+        }
+        
+        function updatePlayerList() {
+            const playersList = document.getElementById('players');
+            playersList.innerHTML = '';
+            
+            for (const name in players) {
+                const li = document.createElement('li');
+                if (name === playerName) {
+                    li.textContent = name + ' (You)';
+                    li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
+                    li.style.fontWeight = 'bold';
+                } else {
+                    li.textContent = name;
+                    li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
+                }
+                playersList.appendChild(li);
+            }
+            
+            // Add yourself if not in list
+            if (!players[playerName]) {
+                const li = document.createElement('li');
+                li.textContent = playerName + ' (You)';
+                li.style.color = '#' + playerColor.toString(16).padStart(6, '0');
+                li.style.fontWeight = 'bold';
+                playersList.appendChild(li);
+            }
+        }
+        
+        // Animation loop
+        const clock = new THREE.Clock();
+        let lastUpdateTime = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+            const moveSpeed = 5 * delta;
+            
+            // Update camera rotation from mouse
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = yaw;
+            camera.rotation.x = pitch;
+            
+            // Calculate movement direction
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            
+            const sideDirection = new THREE.Vector3(-direction.z, 0, direction.x);
+            
+            // Apply movement
+            if (moveForward) camera.position.addScaledVector(direction, moveSpeed);
+            if (moveBackward) camera.position.addScaledVector(direction, -moveSpeed);
+            if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
+            if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
+            
+            // Keep player on the ground
+            camera.position.y = 2;
+            
+            // Update server with player position (limit frequency)
+            if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
+                updatePlayerPosition();
+                lastUpdateTime = elapsedTime;
+            }
+            
+            // Update player meshes
+            updatePlayerMeshes();
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Start animation
+        animate();
+        
+        // Resize handler
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize player in the local players object
+        players[playerName] = {
+            x: camera.position.x,
+            y: camera.position.y,
+            z: camera.position.z,
+            color: playerColor
+        };
+        updatePlayerList();
+        
+        // Start server communication
+        registerPlayer();
+        
+        // Poll for player updates
+        setInterval(getPlayers, 3000);
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                // When tab becomes active again, reconnect if needed
+                if (!isConnected) {
+                    reconnect();
+                }
+            }
+        });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', async function() {
+            if (sessionId) {
+                try {
+                    await fetch('logout_player.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `session_id=${sessionId}`
+                    });
+                } catch (e) {
+                    // Ignore errors during page unload
+                }
+            }
+        });
+    </script>
+</body>
+</html>
