@@ -1951,22 +1951,37 @@
         let skillSystem = null;
 
         function initSkillSystem() {
-            skillSystem = new SkillSystem(playerCharacter);
-            logDebug("Skill system initialized");
+            if (!window.playerCharacter) {
+                logDebug("Character not loaded yet, delaying skill system initialization");
+                setTimeout(initSkillSystem, 500); // Try again in 500ms
+                return;
+            }
             
-            // Give player some skill points based on level
-            skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+            // Load the skills.js script if not already loaded
+            if (!window.SkillSystem) {
+                logDebug("Loading skills.js script");
+                const script = document.createElement('script');
+                script.src = 'skills.js';
+                script.onload = () => {
+                    logDebug("Skills script loaded, initializing skill system");
+                    skillSystem = new SkillSystem(playerCharacter);
+                    logDebug("Skill system initialized");
+                    
+                    // Give player some skill points based on level
+                    skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+                };
+                document.body.appendChild(script);
+            } else {
+                skillSystem = new SkillSystem(playerCharacter);
+                logDebug("Skill system initialized");
+                
+                // Give player some skill points based on level
+                skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+            }
         }
 
         // Call initSkillSystem after character is loaded
-        initSkillSystem();
-
-        // Add this to the animation loop to update skill cooldowns
-        function updateSkillCooldowns() {
-            if (skillSystem) {
-                // This will be handled internally by the skill system
-            }
-        }
+        setTimeout(initSkillSystem, 1000); // Give the character time to initialize
     </script>
 </body>
 </html>
