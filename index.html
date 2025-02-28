@@ -68,6 +68,13 @@
         <h3>Players Online</h3>
         <ul id="players"></ul>
     </div>
+    <div id="chatContainer" style="position: absolute; left: 10px; bottom: 10px; width: 300px; background-color: rgba(0,0,0,0.5); color: white; border-radius: 5px; padding: 10px; display: flex; flex-direction: column;">
+        <div id="chatMessages" style="height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
+        <div style="display: flex;">
+            <input type="text" id="chatInput" placeholder="Type a message..." style="flex-grow: 1; padding: 5px; border-radius: 3px; border: none; margin-right: 5px;">
+            <button id="sendChat" style="padding: 5px 10px; border-radius: 3px; border: none; background-color: #4CAF50; color: white;">Send</button>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script>
@@ -150,6 +157,11 @@
         let moveLeft = false;
         let moveRight = false;
         
+        let canJump = true;
+        let velocity = 0;
+        const gravity = 0.2;
+        let isJumping = false;
+        
         document.addEventListener('keydown', onKeyDown, false);
         document.addEventListener('keyup', onKeyUp, false);
         
@@ -159,6 +171,13 @@
                 case 'KeyS': moveBackward = true; break;
                 case 'KeyA': moveLeft = true; break;
                 case 'KeyD': moveRight = true; break;
+                case 'Space': 
+                    if (canJump) {
+                        velocity = 0.5; // Jump velocity
+                        canJump = false;
+                        isJumping = true;
+                    }
+                    break;
             }
         }
         
@@ -262,6 +281,17 @@
                     console.log('Registered with server, session ID:', sessionId);
                 } else if (data.type === 'players') {
                     updatePlayersList(data.players);
+                } else if (data.type === 'chat') {
+                    // Display chat message
+                    const messageElement = document.createElement('div');
+                    messageElement.innerHTML = `<strong>${data.name}:</strong> ${data.message}`;
+                    chatMessages.appendChild(messageElement);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // Also display chat bubble above player
+                    if (data.name !== playerName && playerMeshes[data.name]) {
+                        showChatBubble(data.name, data.message);
+                    }
                 }
             };
         }
@@ -298,7 +328,8 @@
                 x: camera.position.x,
                 y: camera.position.y,
                 z: camera.position.z,
-                rotation: yaw
+                rotation: yaw,
+                jumping: isJumping
             }));
         }
         
@@ -453,8 +484,22 @@
             if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
             if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
             
-            // Keep player on the ground
-            camera.position.y = 2;
+            // Handle jumping and gravity
+            if (isJumping) {
+                camera.position.y += velocity;
+                velocity -= gravity * delta * 10;
+                
+                // Check if we've landed
+                if (camera.position.y <= 2) {
+                    camera.position.y = 2;
+                    velocity = 0;
+                    isJumping = false;
+                    canJump = true;
+                }
+            } else {
+                // Keep player on the ground when not jumping
+                camera.position.y = 2;
+            }
             
             // Update server with player position (limit frequency)
             if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
@@ -506,6 +551,123 @@
                 socket.close();
             }
         });
+
+        // Chat functionality
+        const chatInput = document.getElementById('chatInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const sendChatButton = document.getElementById('sendChat');
+
+        // Send chat message when Send button is clicked
+        sendChatButton.addEventListener('click', sendChatMessage);
+
+        // Send chat message when Enter key is pressed in chat input
+        chatInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+
+        function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'chat',
+                    id: sessionId,
+                    name: playerName,
+                    message: message
+                }));
+                chatInput.value = '';
+            }
+        }
+
+        // Function to show chat bubble above player
+        function showChatBubble(playerName, message) {
+            if (!playerMeshes[playerName]) return;
+            
+            // Remove existing chat bubble if any
+            const existingBubble = playerMeshes[playerName].getObjectByName('chatBubble');
+            if (existingBubble) {
+                playerMeshes[playerName].remove(existingBubble);
+            }
+            
+            // Create chat bubble
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 128;
+            
+            // Draw bubble background
+            context.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            context.strokeStyle = '#000000';
+            context.lineWidth = 2;
+            roundRect(context, 10, 10, canvas.width - 20, canvas.height - 20, 10, true, true);
+            
+            // Draw text
+            context.font = '16px Arial';
+            context.fillStyle = '#000000';
+            context.textAlign = 'center';
+            
+            // Word wrap the message
+            const words = message.split(' ');
+            let line = '';
+            let y = 40;
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' ';
+                const metrics = context.measureText(testLine);
+                if (metrics.width > canvas.width - 40 && i > 0) {
+                    context.fillText(line, canvas.width / 2, y);
+                    line = words[i] + ' ';
+                    y += 20;
+                } else {
+                    line = testLine;
+                }
+            }
+            context.fillText(line, canvas.width / 2, y);
+            
+            // Create sprite with the canvas texture
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.name = 'chatBubble';
+            sprite.position.y = 3.5;
+            sprite.scale.set(5, 2.5, 1);
+            
+            playerMeshes[playerName].add(sprite);
+            
+            // Remove bubble after 5 seconds
+            setTimeout(() => {
+                if (playerMeshes[playerName]) {
+                    const bubble = playerMeshes[playerName].getObjectByName('chatBubble');
+                    if (bubble) {
+                        playerMeshes[playerName].remove(bubble);
+                    }
+                }
+            }, 5000);
+        }
+
+        // Helper function to draw rounded rectangles
+        function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            if (fill) {
+                ctx.fill();
+            }
+            if (stroke) {
+                ctx.stroke();
+            }
+        }
     </script>
 </body>
 </html>
