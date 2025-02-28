@@ -139,29 +139,19 @@
         camera.position.set(0, 2, 5);
         
         // Renderer setup
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false,
+            powerPreference: "high-performance"
+        });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+        renderer.setClearColor(0x87ceeb, 1); // Set clear color explicitly
         document.body.appendChild(renderer.domElement);
-        
-        // Add this right after scene setup to check for WebGL support
-        if (!renderer) {
-            const warning = document.createElement('div');
-            warning.style.position = 'absolute';
-            warning.style.top = '50%';
-            warning.style.left = '50%';
-            warning.style.transform = 'translate(-50%, -50%)';
-            warning.style.color = 'white';
-            warning.style.backgroundColor = 'rgba(0,0,0,0.7)';
-            warning.style.padding = '20px';
-            warning.style.borderRadius = '5px';
-            warning.style.textAlign = 'center';
-            warning.innerHTML = 'Your browser does not support WebGL.<br>Please try a different browser.';
-            document.body.appendChild(warning);
-            console.error('WebGL not supported');
-        } else {
-            console.log('WebGL initialized successfully');
-        }
+
+        // Add this after the renderer setup to force a render
+        renderer.render(scene, camera);
+        logDebug("Initial render complete");
         
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Increase intensity
@@ -622,6 +612,7 @@
         const clock = new THREE.Clock();
         let lastUpdateTime = 0;
         let lastCharacterUpdateTime = 0;
+        let lastLoggedTime = 0;
         
         function animate() {
             requestAnimationFrame(animate);
@@ -630,6 +621,12 @@
                 const delta = clock.getDelta();
                 const elapsedTime = clock.getElapsedTime();
                 const moveSpeed = 5 * delta;
+                
+                // Log occasional debug info
+                if (Math.floor(elapsedTime) % 10 === 0 && Math.floor(elapsedTime) !== lastLoggedTime) {
+                    lastLoggedTime = Math.floor(elapsedTime);
+                    logDebug(`Running for ${lastLoggedTime}s, FPS: ${Math.round(1/delta)}`);
+                }
                 
                 // Update character stats
                 playerCharacter.update();
@@ -690,6 +687,7 @@
                 renderer.render(scene, camera);
             } catch (error) {
                 console.error('Error in animation loop:', error);
+                logDebug(`Animation error: ${error.message}`);
             }
         }
         
@@ -1364,6 +1362,7 @@
         // Add an offline mode function to allow playing without a server
         function enableOfflineMode() {
             console.log('Enabling offline mode');
+            logDebug('Offline mode enabled');
             isConnected = false;
             
             // Create a fake session ID
@@ -1410,6 +1409,13 @@
                     chatInput.value = '';
                 }
             };
+            
+            // Make sure enemies are initialized
+            initEnemySystem();
+            
+            // Update status indicator
+            statusIndicator.style.backgroundColor = "orange";
+            statusText.textContent = "Offline Mode";
         }
 
         // Modify the enemy system to ensure it works even without a server
@@ -1464,6 +1470,45 @@
         logDebug(`Screen: ${window.innerWidth}x${window.innerHeight}`);
         logDebug(`WebGL: ${!!renderer}`);
         logDebug(`Protocol: ${window.location.protocol}`);
+
+        // Add this function after the connectWebSocket function
+        function checkServerStatus() {
+            fetch('/').then(response => {
+                if (response.ok) {
+                    logDebug("Server is reachable");
+                } else {
+                    logDebug(`Server returned status: ${response.status}`);
+                    enableOfflineMode();
+                }
+            }).catch(error => {
+                logDebug(`Server check failed: ${error.message}`);
+                enableOfflineMode();
+            });
+        }
+
+        // Call this function early in the initialization
+        checkServerStatus();
+
+        // Add this function after scene setup
+        function testSceneRendering() {
+            // Add a simple test object to verify rendering
+            const testGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const testMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xff0000,
+                emissive: 0x440000
+            });
+            const testCube = new THREE.Mesh(testGeometry, testMaterial);
+            testCube.position.set(0, 3, -5);
+            scene.add(testCube);
+            
+            logDebug("Test cube added to scene");
+            
+            // Force a render
+            renderer.render(scene, camera);
+        }
+
+        // Call this function after scene setup
+        testSceneRendering();
     </script>
 </body>
 </html>
