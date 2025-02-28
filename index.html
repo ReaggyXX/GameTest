@@ -1945,6 +1945,28 @@
                 // This will be handled by the inventory class
             }
         });
+
+        // Add this after initializing the inventory
+        // Initialize skill system
+        let skillSystem = null;
+
+        function initSkillSystem() {
+            skillSystem = new SkillSystem(playerCharacter);
+            logDebug("Skill system initialized");
+            
+            // Give player some skill points based on level
+            skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+        }
+
+        // Call initSkillSystem after character is loaded
+        initSkillSystem();
+
+        // Add this to the animation loop to update skill cooldowns
+        function updateSkillCooldowns() {
+            if (skillSystem) {
+                // This will be handled internally by the skill system
+            }
+        }
     </script>
 </body>
 </html>
