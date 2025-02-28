@@ -1946,42 +1946,36 @@
             }
         });
 
-        // Add this after initializing the inventory
+        // Replace the current skill system initialization with this simpler approach
         // Initialize skill system
         let skillSystem = null;
 
         function initSkillSystem() {
-            if (!window.playerCharacter) {
-                logDebug("Character not loaded yet, delaying skill system initialization");
-                setTimeout(initSkillSystem, 500); // Try again in 500ms
-                return;
-            }
-            
-            // Load the skills.js script if not already loaded
-            if (!window.SkillSystem) {
-                logDebug("Loading skills.js script");
-                const script = document.createElement('script');
-                script.src = 'skills.js';
-                script.onload = () => {
-                    logDebug("Skills script loaded, initializing skill system");
-                    skillSystem = new SkillSystem(playerCharacter);
-                    logDebug("Skill system initialized");
-                    
-                    // Give player some skill points based on level
-                    skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
-                };
-                document.body.appendChild(script);
-            } else {
+            // Make sure character exists
+            if (window.playerCharacter) {
+                // Create skill system
                 skillSystem = new SkillSystem(playerCharacter);
-                logDebug("Skill system initialized");
                 
                 // Give player some skill points based on level
                 skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+                
+                logDebug("Skill system initialized");
+            } else {
+                logDebug("Failed to initialize skill system - character not found");
             }
         }
 
-        // Call initSkillSystem after character is loaded
-        setTimeout(initSkillSystem, 1000); // Give the character time to initialize
+        // Call this after character is fully initialized
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add a script tag for skills.js
+            const skillScript = document.createElement('script');
+            skillScript.src = 'skills.js';
+            skillScript.onload = function() {
+                // Initialize skills after the script is loaded
+                setTimeout(initSkillSystem, 1000); // Delay to ensure character is loaded
+            };
+            document.body.appendChild(skillScript);
+        });
     </script>
 </body>
 </html>
