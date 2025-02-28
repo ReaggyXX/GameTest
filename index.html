@@ -144,22 +144,48 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
         
+        // Add this right after scene setup to check for WebGL support
+        if (!renderer) {
+            const warning = document.createElement('div');
+            warning.style.position = 'absolute';
+            warning.style.top = '50%';
+            warning.style.left = '50%';
+            warning.style.transform = 'translate(-50%, -50%)';
+            warning.style.color = 'white';
+            warning.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            warning.style.padding = '20px';
+            warning.style.borderRadius = '5px';
+            warning.style.textAlign = 'center';
+            warning.innerHTML = 'Your browser does not support WebGL.<br>Please try a different browser.';
+            document.body.appendChild(warning);
+            console.error('WebGL not supported');
+        } else {
+            console.log('WebGL initialized successfully');
+        }
+        
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0x404040);
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Increase intensity
         scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Increase intensity
         directionalLight.position.set(1, 1, 1);
         scene.add(directionalLight);
+        
+        // Add a hemisphere light for better outdoor lighting
+        const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
+        scene.add(hemisphereLight);
         
         // Ground
         const groundGeometry = new THREE.PlaneGeometry(100, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({
             color: 0x336633,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            roughness: 0.8, // Add roughness
+            metalness: 0.2  // Add slight metalness
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true; // Enable shadow receiving
         scene.add(ground);
         
         // Add buildings
@@ -349,71 +375,87 @@
         
         // Server communication
         function connectWebSocket() {
-            // Get the current host and use secure WebSocket if on HTTPS
+            // For local development, use a fallback if the connection fails
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}`;
+            let wsUrl = `${protocol}//${window.location.host}`;
+            
+            // If we're on a file:// protocol (local development), use a fallback
+            if (window.location.protocol === 'file:') {
+                wsUrl = 'ws://localhost:3000';
+                console.log('Running locally, using fallback WebSocket URL:', wsUrl);
+            }
             
             statusText.textContent = 'Connecting...';
-            socket = new WebSocket(wsUrl);
             
-            socket.onopen = function() {
-                console.log('WebSocket connected');
+            try {
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = function() {
+                    console.log('WebSocket connected');
                     isConnected = true;
                     statusIndicator.classList.add('online');
                     statusText.textContent = 'Connected';
-                registerPlayer();
-            };
-            
-            socket.onclose = function() {
-                console.log('WebSocket disconnected');
-                isConnected = false;
-                statusIndicator.classList.remove('online');
-                statusText.textContent = 'Disconnected';
-                setTimeout(connectWebSocket, 3000); // Try to reconnect
-            };
-            
-            socket.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                isConnected = false;
-                statusIndicator.classList.remove('online');
-                statusText.textContent = 'Connection error';
-            };
-            
-            socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
+                    registerPlayer();
+                };
                 
-                if (data.type === 'registered') {
-                    sessionId = data.id;
-                    console.log('Registered with server, session ID:', sessionId);
+                socket.onclose = function() {
+                    console.log('WebSocket disconnected');
+                    isConnected = false;
+                    statusIndicator.classList.remove('online');
+                    statusText.textContent = 'Disconnected';
+                    setTimeout(connectWebSocket, 3000); // Try to reconnect
+                };
+                
+                socket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    isConnected = false;
+                    statusIndicator.classList.remove('online');
+                    statusText.textContent = 'Connection error - running in offline mode';
                     
-                    // Send character data to server
-                    socket.send(JSON.stringify({
-                        type: 'characterData',
-                        id: sessionId,
-                        character: playerCharacter.toJSON()
-                    }));
-                } else if (data.type === 'players') {
-                    updatePlayersList(data.players);
-                } else if (data.type === 'chat') {
-                    // Display chat message
-                    const messageElement = document.createElement('div');
-                    messageElement.innerHTML = `<strong>${data.name}:</strong> ${data.message}`;
-                    chatMessages.appendChild(messageElement);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    // Enable offline mode
+                    enableOfflineMode();
+                };
+                
+                socket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
                     
-                    // Also display chat bubble above player
-                    if (data.name !== playerName && playerMeshes[data.name]) {
-                        showChatBubble(data.name, data.message);
+                    if (data.type === 'registered') {
+                        sessionId = data.id;
+                        console.log('Registered with server, session ID:', sessionId);
+                        
+                        // Send character data to server
+                        socket.send(JSON.stringify({
+                            type: 'characterData',
+                            id: sessionId,
+                            character: playerCharacter.toJSON()
+                        }));
+                    } else if (data.type === 'players') {
+                        updatePlayersList(data.players);
+                    } else if (data.type === 'chat') {
+                        // Display chat message
+                        const messageElement = document.createElement('div');
+                        messageElement.innerHTML = `<strong>${data.name}:</strong> ${data.message}`;
+                        chatMessages.appendChild(messageElement);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        
+                        // Also display chat bubble above player
+                        if (data.name !== playerName && playerMeshes[data.name]) {
+                            showChatBubble(data.name, data.message);
+                        }
+                    } else if (data.type === 'characterUpdate') {
+                        // Handle character updates from server
+                        if (data.id === sessionId) {
+                            // Update our character with server data
+                            playerCharacter = Character.fromJSON(data.character);
+                            updateCharacterStatsUI();
+                        }
                     }
-                } else if (data.type === 'characterUpdate') {
-                    // Handle character updates from server
-                    if (data.id === sessionId) {
-                        // Update our character with server data
-                        playerCharacter = Character.fromJSON(data.character);
-                        updateCharacterStatsUI();
-                    }
-                }
-            };
+                };
+            } catch (error) {
+                console.error('Error creating WebSocket:', error);
+                statusText.textContent = 'Connection error - running in offline mode';
+                enableOfflineMode();
+            }
         }
         
         function registerPlayer() {
@@ -426,7 +468,7 @@
                     id: sessionId,
                     name: playerName
                 }));
-                } else {
+            } else {
                 socket.send(JSON.stringify({
                     type: 'register',
                     name: playerName,
@@ -584,66 +626,71 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            const delta = clock.getDelta();
-            const elapsedTime = clock.getElapsedTime();
-            const moveSpeed = 5 * delta;
-            
-            // Update character stats
-            playerCharacter.update();
-            
-            // Update character UI every 0.5 seconds
-            if (elapsedTime - lastCharacterUpdateTime > 0.5) {
-                updateCharacterStatsUI();
-                lastCharacterUpdateTime = elapsedTime;
-            }
-            
-            // Update enemies
-            updateEnemies(delta);
-            
-            // Update camera rotation from mouse
-            camera.rotation.order = 'YXZ';
-            camera.rotation.y = yaw;
-            camera.rotation.x = pitch;
-            
-            // Calculate movement direction
-            const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            
-            const sideDirection = new THREE.Vector3(-direction.z, 0, direction.x);
-            
-            // Apply movement
-            if (moveForward) camera.position.addScaledVector(direction, moveSpeed);
-            if (moveBackward) camera.position.addScaledVector(direction, -moveSpeed);
-            if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
-            if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
-            
-            // Handle jumping and gravity
-            if (isJumping) {
-                camera.position.y += velocity;
-                velocity -= gravity * delta * 10;
+            try {
+                const delta = clock.getDelta();
+                const elapsedTime = clock.getElapsedTime();
+                const moveSpeed = 5 * delta;
                 
-                // Check if we've landed
-                if (camera.position.y <= 2) {
-                    camera.position.y = 2;
-                    velocity = 0;
-                    isJumping = false;
-                    canJump = true;
+                // Update character stats
+                playerCharacter.update();
+                
+                // Update character UI every 0.5 seconds
+                if (elapsedTime - lastCharacterUpdateTime > 0.5) {
+                    updateCharacterStatsUI();
+                    lastCharacterUpdateTime = elapsedTime;
                 }
-            } else {
-                // Keep player on the ground when not jumping
-            camera.position.y = 2;
+                
+                // Update enemies
+                updateEnemies(delta);
+                
+                // Update camera rotation from mouse
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = yaw;
+                camera.rotation.x = pitch;
+                
+                // Calculate movement direction
+                const direction = new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                
+                const sideDirection = new THREE.Vector3(-direction.z, 0, direction.x);
+                
+                // Apply movement
+                if (moveForward) camera.position.addScaledVector(direction, moveSpeed);
+                if (moveBackward) camera.position.addScaledVector(direction, -moveSpeed);
+                if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
+                if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
+                
+                // Handle jumping and gravity
+                if (isJumping) {
+                    camera.position.y += velocity;
+                    velocity -= gravity * delta * 10;
+                    
+                    // Check if we've landed
+                    if (camera.position.y <= 2) {
+                        camera.position.y = 2;
+                        velocity = 0;
+                        isJumping = false;
+                        canJump = true;
+                    }
+                } else {
+                    // Keep player on the ground when not jumping
+                    camera.position.y = 2;
+                }
+                
+                // Update server with player position (limit frequency)
+                if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
+                    updatePlayerPosition();
+                    lastUpdateTime = elapsedTime;
+                }
+                
+                // Update player meshes
+                updatePlayerMeshes();
+                
+                // Render scene
+                renderer.render(scene, camera);
+            } catch (error) {
+                console.error('Error in animation loop:', error);
             }
-            
-            // Update server with player position (limit frequency)
-            if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
-                updatePlayerPosition();
-                lastUpdateTime = elapsedTime;
-            }
-            
-            // Update player meshes
-            updatePlayerMeshes();
-            
-            renderer.render(scene, camera);
         }
         
         // Start animation
@@ -1313,6 +1360,110 @@
             
             requestAnimationFrame(animateXp);
         }
+
+        // Add an offline mode function to allow playing without a server
+        function enableOfflineMode() {
+            console.log('Enabling offline mode');
+            isConnected = false;
+            
+            // Create a fake session ID
+            sessionId = 'offline-' + Math.random().toString(36).substring(2, 15);
+            
+            // Clear any existing players
+            for (const name in playerMeshes) {
+                if (name !== playerName) {
+                    scene.remove(playerMeshes[name]);
+                    delete playerMeshes[name];
+                }
+            }
+            players = {};
+            players[playerName] = {
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                color: playerColor,
+                rotation: yaw
+            };
+            
+            updatePlayerList();
+            
+            // Override server communication functions to work offline
+            updatePlayerPosition = function() {
+                // Just update local player data
+                players[playerName] = {
+                    x: camera.position.x,
+                    y: camera.position.y,
+                    z: camera.position.z,
+                    color: playerColor,
+                    rotation: yaw
+                };
+            };
+            
+            // Override chat to work locally
+            sendChatMessage = function() {
+                const message = chatInput.value.trim();
+                if (message) {
+                    const messageElement = document.createElement('div');
+                    messageElement.innerHTML = `<strong>${playerName}:</strong> ${message}`;
+                    chatMessages.appendChild(messageElement);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    chatInput.value = '';
+                }
+            };
+        }
+
+        // Modify the enemy system to ensure it works even without a server
+        // Add this right after the enemy system initialization
+        let enemiesInitialized = false;
+
+        function initEnemySystem() {
+            if (enemiesInitialized) return;
+            enemiesInitialized = true;
+            
+            console.log('Initializing enemy system');
+            
+            // Start spawning enemies
+            setTimeout(spawnEnemies, 5000); // Start after 5 seconds
+        }
+
+        // Call this function after scene setup is complete
+        initEnemySystem();
+
+        // Add this after the character stats UI creation
+        const debugPanel = document.createElement('div');
+        debugPanel.id = 'debugPanel';
+        debugPanel.style.position = 'absolute';
+        debugPanel.style.right = '10px';
+        debugPanel.style.bottom = '10px';
+        debugPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        debugPanel.style.color = 'white';
+        debugPanel.style.padding = '10px';
+        debugPanel.style.borderRadius = '5px';
+        debugPanel.style.fontSize = '12px';
+        debugPanel.style.maxWidth = '300px';
+        debugPanel.style.maxHeight = '150px';
+        debugPanel.style.overflow = 'auto';
+        debugPanel.style.zIndex = '1000';
+        document.body.appendChild(debugPanel);
+
+        function logDebug(message) {
+            const line = document.createElement('div');
+            line.textContent = message;
+            debugPanel.appendChild(line);
+            
+            // Keep only the last 10 messages
+            while (debugPanel.children.length > 10) {
+                debugPanel.removeChild(debugPanel.firstChild);
+            }
+            
+            debugPanel.scrollTop = debugPanel.scrollHeight;
+            console.log(message);
+        }
+
+        // Log some initial debug info
+        logDebug(`Screen: ${window.innerWidth}x${window.innerHeight}`);
+        logDebug(`WebGL: ${!!renderer}`);
+        logDebug(`Protocol: ${window.location.protocol}`);
     </script>
 </body>
 </html>
