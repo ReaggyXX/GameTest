@@ -640,6 +640,11 @@
                 // Update enemies
                 updateEnemies(delta);
                 
+                // Update ambient particles if they exist
+                if (typeof updateAmbientParticles === 'function') {
+                    updateAmbientParticles();
+                }
+                
                 // Update camera rotation from mouse
                 camera.rotation.order = 'YXZ';
                 camera.rotation.y = yaw;
@@ -1062,75 +1067,86 @@
         const ENEMY_ATTACK_COOLDOWN = 1000; // 1 second
 
         function createEnemy() {
-            // Random position away from player
-            let x, z;
-            do {
-                x = Math.random() * 80 - 40; // -40 to 40
-                z = Math.random() * 80 - 40; // -40 to 40
-            } while (Math.sqrt(Math.pow(x - camera.position.x, 2) + Math.pow(z - camera.position.z, 2)) < 15);
-            
-            // Create enemy mesh
-            const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 8);
-            const headGeometry = new THREE.SphereGeometry(0.6, 16, 16);
-            
-            const material = new THREE.MeshStandardMaterial({ color: 0x880000 });
-            
-            const body = new THREE.Mesh(bodyGeometry, material);
-            const head = new THREE.Mesh(headGeometry, material);
-            
-            head.position.y = 1.2;
-            
-            // Create a group to hold the body parts
-            const enemyGroup = new THREE.Group();
-            enemyGroup.add(body);
-            enemyGroup.add(head);
-            
-            // Add enemy label
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 256;
-            canvas.height = 64;
-            context.font = '24px Arial';
-            context.fillStyle = '#ff0000';
-            context.textAlign = 'center';
-            context.fillText("Enemy", 128, 24);
-            
-            const texture = new THREE.CanvasTexture(canvas);
-            const labelMaterial = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true
-            });
-            const label = new THREE.Sprite(labelMaterial);
-            label.position.y = 2.5;
-            label.scale.set(5, 1.25, 1);
-            
-            enemyGroup.add(label);
-            
-            // Position the enemy
-            enemyGroup.position.set(x, 2, z);
-            scene.add(enemyGroup);
-            
-            // Create enemy data
-            const enemy = {
-                mesh: enemyGroup,
-                health: 30,
-                speed: 2,
-                lastAttackTime: 0,
-                isDead: false
-            };
-            
-            enemies.push(enemy);
-            return enemy;
+            try {
+                // Random position away from player
+                let x, z;
+                do {
+                    x = Math.random() * 80 - 40; // -40 to 40
+                    z = Math.random() * 80 - 40; // -40 to 40
+                } while (Math.sqrt(Math.pow(x - camera.position.x, 2) + Math.pow(z - camera.position.z, 2)) < 15);
+                
+                // Create enemy mesh
+                const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 8);
+                const headGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+                
+                const material = new THREE.MeshStandardMaterial({ color: 0x880000 });
+                
+                const body = new THREE.Mesh(bodyGeometry, material);
+                const head = new THREE.Mesh(headGeometry, material);
+                
+                head.position.y = 1.2;
+                
+                // Create a group to hold the body parts
+                const enemyGroup = new THREE.Group();
+                enemyGroup.add(body);
+                enemyGroup.add(head);
+                
+                // Add enemy label
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 256;
+                canvas.height = 64;
+                context.font = '24px Arial';
+                context.fillStyle = '#ff0000';
+                context.textAlign = 'center';
+                context.fillText("Enemy", 128, 24);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const labelMaterial = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true
+                });
+                const label = new THREE.Sprite(labelMaterial);
+                label.position.y = 2.5;
+                label.scale.set(5, 1.25, 1);
+                
+                enemyGroup.add(label);
+                
+                // Position the enemy
+                enemyGroup.position.set(x, 2, z);
+                scene.add(enemyGroup);
+                
+                // Create enemy data
+                const enemy = {
+                    mesh: enemyGroup,
+                    health: 30,
+                    speed: 2,
+                    lastAttackTime: 0,
+                    isDead: false
+                };
+                
+                enemies.push(enemy);
+                logDebug("Enemy created at " + x.toFixed(1) + ", " + z.toFixed(1));
+                return enemy;
+            } catch (error) {
+                console.error("Error creating enemy:", error);
+                logDebug("Enemy creation error: " + error.message);
+            }
         }
 
         // Spawn enemies periodically
         function spawnEnemies() {
-            if (enemies.length < MAX_ENEMIES) {
-                createEnemy();
+            try {
+                if (enemies.length < MAX_ENEMIES) {
+                    createEnemy();
+                }
+                
+                // Schedule next spawn
+                setTimeout(spawnEnemies, ENEMY_SPAWN_INTERVAL);
+            } catch (error) {
+                console.error("Error spawning enemies:", error);
+                logDebug("Enemy spawn error: " + error.message);
             }
-            
-            // Schedule next spawn
-            setTimeout(spawnEnemies, ENEMY_SPAWN_INTERVAL);
         }
 
         // Start spawning enemies
@@ -1727,6 +1743,12 @@
         document.body.appendChild(debugPanel);
 
         function logDebug(message) {
+            // Check if debugPanel exists yet
+            if (!window.debugPanel) {
+                console.log(message);
+                return;
+            }
+            
             const line = document.createElement('div');
             line.textContent = message;
             debugPanel.appendChild(line);
