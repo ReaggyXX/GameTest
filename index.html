@@ -125,6 +125,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="character.js"></script>
     <script>
         // Scene setup
         const scene = new THREE.Scene();
@@ -274,6 +275,60 @@
         let isConnected = false;
         let socket = null;
         
+        // Character data
+        let playerCharacter = null;
+        
+        // Try to load character from localStorage
+        const savedCharacterData = localStorage.getItem('playerCharacter');
+        if (savedCharacterData) {
+            try {
+                const characterData = JSON.parse(savedCharacterData);
+                playerCharacter = Character.fromJSON(characterData);
+                // Update name and color if they've changed
+                playerCharacter.name = playerName;
+                playerCharacter.color = playerColor;
+            } catch (e) {
+                console.error('Error loading character data:', e);
+                playerCharacter = new Character(playerName, playerColor);
+            }
+        } else {
+            playerCharacter = new Character(playerName, playerColor);
+        }
+        
+        // Add character stats UI
+        const characterStatsDiv = document.createElement('div');
+        characterStatsDiv.id = 'characterStats';
+        characterStatsDiv.style.position = 'absolute';
+        characterStatsDiv.style.left = '10px';
+        characterStatsDiv.style.top = '100px';
+        characterStatsDiv.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        characterStatsDiv.style.color = 'white';
+        characterStatsDiv.style.padding = '10px';
+        characterStatsDiv.style.borderRadius = '5px';
+        characterStatsDiv.style.maxWidth = '200px';
+        document.body.appendChild(characterStatsDiv);
+        
+        function updateCharacterStatsUI() {
+            characterStatsDiv.innerHTML = `
+                <h3>Character Stats</h3>
+                <div>Level: ${playerCharacter.level}</div>
+                <div>XP: ${playerCharacter.experience}/${playerCharacter.experienceToNextLevel}</div>
+                <div>Health: ${Math.floor(playerCharacter.currentHealth)}/${playerCharacter.maxHealth}</div>
+                <div>Mana: ${Math.floor(playerCharacter.currentMana)}/${playerCharacter.maxMana}</div>
+                <div>Strength: ${playerCharacter.strength}</div>
+                <div>Defense: ${playerCharacter.defense}</div>
+                <div>Speed: ${playerCharacter.speed}</div>
+            `;
+        }
+        
+        // Update character stats initially
+        updateCharacterStatsUI();
+        
+        // Save character data periodically
+        setInterval(() => {
+            localStorage.setItem('playerCharacter', JSON.stringify(playerCharacter.toJSON()));
+        }, 10000); // Save every 10 seconds
+        
         // Connection status
         const statusIndicator = document.getElementById('statusIndicator');
         const statusText = document.getElementById('statusText');
@@ -327,6 +382,13 @@
                 if (data.type === 'registered') {
                     sessionId = data.id;
                     console.log('Registered with server, session ID:', sessionId);
+                    
+                    // Send character data to server
+                    socket.send(JSON.stringify({
+                        type: 'characterData',
+                        id: sessionId,
+                        character: playerCharacter.toJSON()
+                    }));
                 } else if (data.type === 'players') {
                     updatePlayersList(data.players);
                 } else if (data.type === 'chat') {
@@ -339,6 +401,13 @@
                     // Also display chat bubble above player
                     if (data.name !== playerName && playerMeshes[data.name]) {
                         showChatBubble(data.name, data.message);
+                    }
+                } else if (data.type === 'characterUpdate') {
+                    // Handle character updates from server
+                    if (data.id === sessionId) {
+                        // Update our character with server data
+                        playerCharacter = Character.fromJSON(data.character);
+                        updateCharacterStatsUI();
                     }
                 }
             };
@@ -507,6 +576,7 @@
         // Animation loop
         const clock = new THREE.Clock();
         let lastUpdateTime = 0;
+        let lastCharacterUpdateTime = 0;
         
         function animate() {
             requestAnimationFrame(animate);
@@ -514,6 +584,15 @@
             const delta = clock.getDelta();
             const elapsedTime = clock.getElapsedTime();
             const moveSpeed = 5 * delta;
+            
+            // Update character stats
+            playerCharacter.update();
+            
+            // Update character UI every 0.5 seconds
+            if (elapsedTime - lastCharacterUpdateTime > 0.5) {
+                updateCharacterStatsUI();
+                lastCharacterUpdateTime = elapsedTime;
+            }
             
             // Update camera rotation from mouse
             camera.rotation.order = 'YXZ';
