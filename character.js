@@ -1,4 +1,4 @@
- class Character {
+class Character {
     constructor(name, color) {
         // Basic info
         this.name = name;
