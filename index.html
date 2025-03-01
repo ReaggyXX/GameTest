@@ -148,87 +148,72 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script>
-        // Fix the character and skill system initialization
-        // Make sure we load character.js first
-        const characterScript = document.createElement('script');
-        characterScript.src = 'character.js';
-        document.body.appendChild(characterScript);
-
-        // Then load inventory.js
-        const inventoryScript = document.createElement('script');
-        inventoryScript.src = 'inventory.js';
-        document.body.appendChild(inventoryScript);
-
-        // Then load skills.js
-        const skillsScript = document.createElement('script');
-        skillsScript.src = 'skills.js';
-        document.body.appendChild(skillsScript);
-
-        // Initialize everything in the right order
-        characterScript.onload = function() {
-            logDebug("Character script loaded");
-            
-            // Create player character
-            window.playerCharacter = new Character({
-                name: playerName || "Player",
-                health: 100,
-                maxHealth: 100,
-                mana: 50,
-                maxMana: 50,
-                strength: 10,
-                defense: 5,
-                level: 1,
-                experience: 0
-            });
-            
-            logDebug("Player character created");
-            
-            // Now load inventory
-            inventoryScript.onload = function() {
-                logDebug("Inventory script loaded");
-                initInventory();
+        // Initialize character
+        let playerCharacter = null;
+        let playerInventory = null;
+        let skillSystem = null;
+        
+        // Create character
+        function initializeCharacter() {
+            try {
+                playerCharacter = new Character({
+                    name: playerName || "Player",
+                    health: 100,
+                    maxHealth: 100,
+                    mana: 50,
+                    maxMana: 50,
+                    strength: 10,
+                    defense: 5,
+                    level: 1,
+                    experience: 0
+                });
                 
-                // Now load skills
-                skillsScript.onload = function() {
-                    logDebug("Skills script loaded");
-                    initSkillSystem();
-                };
-            };
-        };
-
+                // Make it globally accessible
+                window.playerCharacter = playerCharacter;
+                
+                logDebug("Character initialized");
+                
+                // Now initialize inventory and skills
+                initializeInventory();
+                initializeSkills();
+            } catch (error) {
+                logDebug("Error initializing character: " + error.message);
+                // Try again in a moment
+                setTimeout(initializeCharacter, 500);
+            }
+        }
+        
         // Initialize inventory
-        function initInventory() {
-            if (window.Inventory) {
+        function initializeInventory() {
+            try {
                 playerInventory = new Inventory();
                 playerInventory.addItem(Item.createApple());
                 logDebug("Inventory system initialized");
-            } else {
-                logDebug("Inventory class not available");
+            } catch (error) {
+                logDebug("Error initializing inventory: " + error.message);
             }
         }
-
-        // Initialize skill system
-        function initSkillSystem() {
-            if (window.SkillSystem && window.playerCharacter) {
-                try {
-                    skillSystem = new SkillSystem(playerCharacter);
-                    skillSystem.skillPoints = 3; // Give some skill points to start
-                    
-                    // Assign dash to slot 1 by default
-                    const dashSkill = skillSystem.getSkill('dash');
-                    if (dashSkill) {
-                        skillSystem.assignSkillToSlot('dash', 0);
-                    }
-                    
-                    logDebug("Skill system initialized successfully");
-                } catch (error) {
-                    logDebug("Error initializing skill system: " + error.message);
-                    console.error(error);
+        
+        // Initialize skills
+        function initializeSkills() {
+            try {
+                skillSystem = new SkillSystem(playerCharacter);
+                skillSystem.skillPoints = 3; // Give some skill points to start
+                
+                // Assign dash to slot 1 by default
+                const dashSkill = skillSystem.getSkill('dash');
+                if (dashSkill) {
+                    skillSystem.assignSkillToSlot('dash', 0);
                 }
-            } else {
-                logDebug("SkillSystem or playerCharacter not available");
+                
+                logDebug("Skill system initialized");
+            } catch (error) {
+                logDebug("Error initializing skills: " + error.message);
             }
         }
+        
+        // Start initialization after a short delay
+        setTimeout(initializeCharacter, 1000);
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -2010,5 +1995,8 @@
             }
         });
     </script>
+    <script src="character.js"></script>
+    <script src="inventory.js"></script>
+    <script src="skills.js"></script>
 </body>
 </html>
