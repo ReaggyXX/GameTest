@@ -1304,67 +1304,34 @@
         });
 
         // Create a weapon swing effect
-        function createSwingEffect() {
-            // Create a curved blade shape
-            const points = [];
-            for (let i = 0; i <= 5; i++) {
-                const angle = (i / 5) * Math.PI;
-                points.push(new THREE.Vector3(
-                    Math.cos(angle) * 2,
-                    Math.sin(angle) * 2,
-                    0
-                ));
-            }
-            
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
-            const material = new THREE.LineBasicMaterial({ 
-                color: 0x00ffff, 
-                linewidth: 3,
-                transparent: true,
-                opacity: 0.7
-            });
-            
-            const swing = new THREE.Line(geometry, material);
-            
-            // Position in front of player
+        function createSwordSlashEffect() {
+            if (!window.scene || !window.camera) return;
+
+            // Create a sword slash shape (a simple line for demonstration)
+            const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+            const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const slash = new THREE.Mesh(geometry, material);
+
+            // Position the slash in front of the player
             const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            
-            swing.position.copy(camera.position);
-            swing.position.y -= 0.5; // Position slightly below eye level
-            swing.position.addScaledVector(direction, 2); // Position in front of player
-            
-            // Rotate to face the direction of attack
-            swing.lookAt(
-                camera.position.x + direction.x * 10,
-                camera.position.y + direction.y * 10,
-                camera.position.z + direction.z * 10
-            );
-            
-            // Add to scene
-            scene.add(swing);
-            
-            // Animate and remove
-            let scale = 0.1;
-            const animateSwing = () => {
-                if (scale >= 1.0) {
-                    swing.material.opacity -= 0.1;
-                    if (swing.material.opacity <= 0) {
-                        scene.remove(swing);
-                        return;
-                    }
-                } else {
-                    scale += 0.1;
-                    swing.scale.set(scale, scale, scale);
+            window.camera.getWorldDirection(direction);
+            const startPosition = window.camera.position.clone().add(direction.clone().multiplyScalar(1));
+            slash.position.copy(startPosition);
+            slash.rotation.x = Math.PI / 2; // Rotate to lay flat
+
+            window.scene.add(slash);
+
+            // Animate the slash
+            const animateSlash = () => {
+                slash.scale.y -= 0.1; // Shrink the slash over time
+                if (slash.scale.y <= 0) {
+                    window.scene.remove(slash); // Remove the slash when it's gone
+                    return;
                 }
-                
-                // Rotate the swing effect
-                swing.rotation.z += 0.2;
-                
-                requestAnimationFrame(animateSwing);
+                requestAnimationFrame(animateSlash);
             };
-            
-            requestAnimationFrame(animateSwing);
+
+            requestAnimationFrame(animateSlash);
         }
 
         // Create particle effect for hits
@@ -1535,47 +1502,47 @@
         // Modify the attackEnemies function to add visual effects
         function attackEnemies() {
             if (!isAttacking) return;
-            
-            // Create swing effect
-            createSwingEffect();
-            
+
+            // Create sword slash effect
+            createSwordSlashEffect();
+
             // Find enemies in attack range
             for (const enemy of enemies) {
                 const distanceToEnemy = Math.sqrt(
-                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) + 
+                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) +
                     Math.pow(enemy.mesh.position.z - camera.position.z, 2)
                 );
-                
-                if (distanceToEnemy < 3) { // Attack range
-                    // Deal damage to player
+
+                if (distanceToEnemy < 2) { // Adjust attack range as needed
+                    // Deal damage to enemy
                     enemy.health -= playerCharacter.strength / 2;
-                    
+
                     // Show damage number above enemy
-                    showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
-                    
-                    // Create hit particles at enemy position
-                    createHitParticles(enemy.mesh.position);
-                    
+                    if (typeof showEnemyDamageNumber === 'function') {
+                        showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
+                    }
+
                     // Check if enemy is dead
                     if (enemy.health <= 0) {
                         enemy.isDead = true;
-                        
+
                         // Give player experience
                         const xpGained = 20;
                         playerCharacter.gainExperience(xpGained);
-                        
+
                         // Show XP gained
-                        showXpGainedMessage(xpGained);
-                        
+                        if (typeof showXpGainedMessage === 'function') {
+                            showXpGainedMessage(xpGained);
+                        }
+
                         // Create death effect
-                        createDeathEffect(enemy.mesh.position);
-                        
-                        // Update UI
-                        updateCharacterStatsUI();
+                        if (typeof createDeathEffect === 'function') {
+                            createDeathEffect(enemy.mesh.position);
+                        }
                     }
                 }
             }
-            
+
             // Continue attacking if button is still pressed
             setTimeout(() => {
                 if (isAttacking) {
