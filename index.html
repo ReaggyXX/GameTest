@@ -738,6 +738,7 @@
                     updateSkillCooldowns();
 
                     // Update player attacks
+                    attackPlayers();
                     attackEnemies();
                     
                     // Render scene
@@ -1281,10 +1282,12 @@
 
             // Add ability to attack enemies
             let isAttacking = false;
+
             document.addEventListener('mousedown', function(event) {
                 if (event.button === 0) { // Left mouse button
                     isAttacking = true;
-                    attackEnemies();
+                    attackPlayers(); // Call the attack function for players
+                    attackEnemies(); // Call the attack function for enemies
                 }
             });
 
@@ -1325,76 +1328,74 @@
                 requestAnimationFrame(animateSlash);
             }
 
-            // Create particle effect for hits
-            function createHitParticles(position, color = 0xff0000) {
-                const particleCount = 15;
-                const geometry = new THREE.BufferGeometry();
-                const positions = new Float32Array(particleCount * 3);
-                const sizes = new Float32Array(particleCount);
-                
-                // Initialize particles at the hit position
-                for (let i = 0; i < particleCount; i++) {
-                    positions[i * 3] = position.x;
-                    positions[i * 3 + 1] = position.y;
-                    positions[i * 3 + 2] = position.z;
-                    sizes[i] = Math.random() * 0.5 + 0.1;
-                }
-                
-                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-                
-                // Create particle material
-                const material = new THREE.PointsMaterial({
-                    color: color,
-                    size: 0.1,
-                    transparent: true,
-                    opacity: 1.0,
-                    sizeAttenuation: true
-                });
-                
-                const particles = new THREE.Points(geometry, material);
-                scene.add(particles);
-                
-                // Particle velocities
-                const velocities = [];
-                for (let i = 0; i < particleCount; i++) {
-                    velocities.push({
-                        x: (Math.random() - 0.5) * 2,
-                        y: Math.random() * 2 + 1,
-                        z: (Math.random() - 0.5) * 2
-                    });
-                }
-                
-                // Animate particles
-                let frame = 0;
-                const animateParticles = () => {
-                    frame++;
-                    
-                    const positions = particles.geometry.attributes.position.array;
-                    
-                    for (let i = 0; i < particleCount; i++) {
-                        // Update positions based on velocity
-                        positions[i * 3] += velocities[i].x * 0.1;
-                        positions[i * 3 + 1] += velocities[i].y * 0.1;
-                        positions[i * 3 + 2] += velocities[i].z * 0.1;
-                        
-                        // Apply gravity
-                        velocities[i].y -= 0.05;
+            // Attack logic for players and enemies
+            function attackPlayers() {
+                if (!isAttacking) return;
+
+                // Create sword slash effect
+                createSwordSlashEffect();
+
+                // Find players in attack range
+                for (const name in players) {
+                    if (name === playerName) continue; // Skip self
+
+                    const player = players[name];
+                    const distanceToPlayer = Math.sqrt(
+                        Math.pow(player.x - camera.position.x, 2) +
+                        Math.pow(player.z - camera.position.z, 2)
+                    );
+
+                    if (distanceToPlayer < 2) { // Adjust attack range as needed
+                        // Deal damage to player
+                        player.health -= playerCharacter.strength / 2;
+
+                        // Show damage number above player
+                        if (typeof showEnemyDamageNumber === 'function') {
+                            showEnemyDamageNumber(player, playerCharacter.strength / 2);
+                        }
+
+                        // Check if player is dead
+                        if (player.health <= 0) {
+                            player.isDead = true;
+
+                            // Handle player death (e.g., respawn)
+                            handlePlayerDeath(player);
+                        }
                     }
-                    
-                    particles.geometry.attributes.position.needsUpdate = true;
-                    
-                    // Fade out
-                    particles.material.opacity -= 0.02;
-                    
-                    if (particles.material.opacity > 0) {
-                        requestAnimationFrame(animateParticles);
-                    } else {
-                        scene.remove(particles);
+                }
+            }
+
+            function attackEnemies() {
+                if (!isAttacking) return;
+
+                // Create sword slash effect
+                createSwordSlashEffect();
+
+                // Find enemies in attack range
+                for (const enemy of enemies) {
+                    const distanceToEnemy = Math.sqrt(
+                        Math.pow(enemy.mesh.position.x - camera.position.x, 2) +
+                        Math.pow(enemy.mesh.position.z - camera.position.z, 2)
+                    );
+
+                    if (distanceToEnemy < 2) { // Adjust attack range as needed
+                        // Deal damage to enemy
+                        enemy.health -= playerCharacter.strength / 2;
+
+                        // Show damage number above enemy
+                        if (typeof showEnemyDamageNumber === 'function') {
+                            showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
+                        }
+
+                        // Check if enemy is dead
+                        if (enemy.health <= 0) {
+                            enemy.isDead = true;
+
+                            // Handle enemy death (e.g., respawn)
+                            handleEnemyDeath(enemy);
+                        }
                     }
-                };
-                
-                requestAnimationFrame(animateParticles);
+                }
             }
 
             // Add ambient environmental particles
@@ -1489,87 +1490,6 @@
 
             // Create skybox
             createSkybox();
-
-            // Modify the attackEnemies function to add visual effects
-            function attackEnemies() {
-                if (!isAttacking) return;
-
-                // Create sword slash effect
-                createSwordSlashEffect();
-
-                // Find enemies in attack range
-                for (const enemy of enemies) {
-                    const distanceToEnemy = Math.sqrt(
-                        Math.pow(enemy.mesh.position.x - camera.position.x, 2) +
-                        Math.pow(enemy.mesh.position.z - camera.position.z, 2)
-                    );
-
-                    if (distanceToEnemy < 2) { // Adjust attack range as needed
-                        // Deal damage to enemy
-                        enemy.health -= playerCharacter.strength / 2;
-
-                        // Show damage number above enemy
-                        if (typeof showEnemyDamageNumber === 'function') {
-                            showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
-                        }
-
-                        // Check if enemy is dead
-                        if (enemy.health <= 0) {
-                            enemy.isDead = true;
-
-                            // Handle enemy death (e.g., respawn)
-                            handleEnemyDeath(enemy);
-                        }
-                    }
-                }
-
-                // Continue attacking if button is still pressed
-                setTimeout(() => {
-                    if (isAttacking) {
-                        attackEnemies();
-                    }
-                }, 500); // Attack every 500ms
-            }
-
-            // Create death effect for enemies
-            function createDeathEffect(position) {
-                // Create explosion particles
-                createHitParticles(position, 0xffaa00);
-                
-                // Create larger explosion
-                const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-                const material = new THREE.MeshBasicMaterial({
-                    color: 0xff6600,
-                    transparent: true,
-                    opacity: 0.7
-                });
-                
-                const explosion = new THREE.Mesh(geometry, material);
-                explosion.position.copy(position);
-                scene.add(explosion);
-                
-                // Animate explosion
-                let scale = 0.1;
-                const animateExplosion = () => {
-                    scale += 0.2;
-                    explosion.scale.set(scale, scale, scale);
-                    
-                    explosion.material.opacity -= 0.05;
-                    
-                    if (explosion.material.opacity > 0) {
-                        requestAnimationFrame(animateExplosion);
-                    } else {
-                        scene.remove(explosion);
-                    }
-                };
-                
-                requestAnimationFrame(animateExplosion);
-                
-                // Drop loot with 70% chance
-                if (Math.random() < 0.7) {
-                    dropLoot(position);
-                }
-            }
 
             // Show damage number above enemy
             function showEnemyDamageNumber(enemy, amount) {
