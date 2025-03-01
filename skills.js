@@ -30,18 +30,25 @@ class SkillSystem {
             cooldown: 5,
             manaCost: 10,
             requiredLevel: 1,
-            effect: (character, direction) => {
+            effect: (character) => {
                 // Get dash distance based on skill level
                 const dashDistance = 3 + (this.getSkill('dash').level - 1);
                 
                 // Apply dash effect
-                if (window.camera && window.moveSpeed) {
+                if (window.camera) {
                     const dashDir = new THREE.Vector3();
                     window.camera.getWorldDirection(dashDir);
-                    window.camera.position.addScaledVector(dashDir, dashDistance);
                     
-                    // Create dash effect
+                    // Log the dash direction for debugging
+                    if (typeof logDebug === 'function') {
+                        logDebug(`Dashing with distance ${dashDistance} in direction ${dashDir.x.toFixed(2)}, ${dashDir.y.toFixed(2)}, ${dashDir.z.toFixed(2)}`);
+                    }
+                    
+                    // Create dash effect first so it shows the starting position
                     this.createDashEffect(dashDir);
+                    
+                    // Then move the camera
+                    window.camera.position.addScaledVector(dashDir, dashDistance);
                     
                     return true;
                 }
@@ -209,31 +216,22 @@ class SkillSystem {
         return this.skills.find(skill => skill.id === id);
     }
     
-    activateSkill(id) {
-        const skill = this.getSkill(id);
-        
+    activateSkill(skillId) {
+        const skill = this.getSkill(skillId);
         if (!skill) return false;
         
         // Check if skill is on cooldown
-        if (this.isOnCooldown(id)) {
+        if (this.cooldowns[skillId] && this.cooldowns[skillId] > 0) {
             if (typeof logDebug === 'function') {
-                logDebug(`Skill ${skill.name} is on cooldown`);
+                logDebug(`${skill.name} is on cooldown (${this.cooldowns[skillId].toFixed(1)}s)`);
             }
             return false;
         }
         
-        // Check if character has enough mana
+        // Check if player has enough mana
         if (this.character.currentMana < skill.manaCost) {
             if (typeof logDebug === 'function') {
-                logDebug(`Not enough mana for ${skill.name}`);
-            }
-            return false;
-        }
-        
-        // Check if character meets level requirement
-        if (this.character.level < skill.requiredLevel) {
-            if (typeof logDebug === 'function') {
-                logDebug(`Character level too low for ${skill.name}`);
+                logDebug(`Not enough mana to use ${skill.name}`);
             }
             return false;
         }
@@ -241,27 +239,33 @@ class SkillSystem {
         // Use mana
         this.character.currentMana -= skill.manaCost;
         
-        // Update character UI
+        // Set cooldown
+        this.cooldowns[skillId] = skill.cooldown;
+        
+        // Update UI if needed
         if (typeof updateCharacterStatsUI === 'function') {
             updateCharacterStatsUI();
         }
         
-        // Apply skill effect
-        const success = skill.effect(this.character);
-        
-        if (success) {
-            // Set cooldown
-            this.setCooldown(id, skill.cooldown);
-            
-            // Update UI
-            this.updateSkillUI();
+        // Execute skill effect
+        try {
+            const result = skill.effect(this.character);
             
             if (typeof logDebug === 'function') {
-                logDebug(`Activated skill: ${skill.name}`);
+                logDebug(`Used ${skill.name}`);
             }
+            
+            // Update skill UI
+            this.updateSkillUI();
+            
+            return result;
+        } catch (error) {
+            console.error(`Error executing skill ${skill.name}:`, error);
+            if (typeof logDebug === 'function') {
+                logDebug(`Error using ${skill.name}: ${error.message}`);
+            }
+            return false;
         }
-        
-        return success;
     }
     
     setCooldown(id, duration) {
@@ -746,6 +750,9 @@ class SkillSystem {
     
     bindKeyEvents() {
         document.addEventListener('keydown', (e) => {
+            // Set a flag to prevent double handling
+            this._handlingKeyPress = true;
+            
             // Number keys 1-4 to activate skills
             if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4') {
                 const index = parseInt(e.key) - 1;
@@ -761,6 +768,11 @@ class SkillSystem {
             if (e.code === 'KeyK') {
                 this.toggleSkillsPanel();
             }
+            
+            // Clear the flag after a short delay
+            setTimeout(() => {
+                this._handlingKeyPress = false;
+            }, 100);
         });
     }
     
@@ -955,7 +967,12 @@ class SkillSystem {
         this.skillPoints--;
         
         // Update UI
-        this.toggleSkillsPanel(); // Refresh panel
+        if (this.skillsPanel) {
+            // Close and reopen to refresh
+            document.body.removeChild(this.skillsPanel);
+            this.skillsPanel = null;
+            this.createSkillsPanel();
+        }
         
         if (typeof logDebug === 'function') {
             logDebug(`Upgraded ${skill.name} to level ${skill.level}`);
@@ -968,6 +985,22 @@ class SkillSystem {
         
         // Create dash trail effect
         const trailGeometry = new THREE.BufferGeometry();
+        const positions = [];
+        
+        // Create trail points along the dash path
+        const startPos = window.camera.position.clone();
+        startPos.y -= 0.5; // Position slightly below camera to be visible
+        
+        // Create 20 points along the dash path
+        for (let i = 0; i < 20; i++) {
+            const point = startPos.clone();
+            // Move point backward along the dash path
+            point.addScaledVector(direction, -i * 0.2);
+            positions.push(point.x, point.y, point.z);
+        }
+        
+        trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        
         const trailMaterial = new THREE.PointsMaterial({
             color: 0x3498db,
             size: 0.2,
@@ -975,21 +1008,10 @@ class SkillSystem {
             opacity: 0.7
         });
         
-        // Create trail points
-        const positions = [];
-        const startPos = window.camera.position.clone();
-        
-        // Create points along the dash path
-        for (let i = 0; i < 20; i++) {
-            const point = startPos.clone().sub(direction.clone().multiplyScalar(i * 0.15));
-            positions.push(point.x, point.y, point.z);
-        }
-        
-        trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         const trail = new THREE.Points(trailGeometry, trailMaterial);
         window.scene.add(trail);
         
-        // Animate trail
+        // Animate the trail
         let opacity = 0.7;
         const animateTrail = () => {
             opacity -= 0.05;
@@ -1005,7 +1027,7 @@ class SkillSystem {
         
         requestAnimationFrame(animateTrail);
         
-        // Play dash sound if available
+        // Add a sound effect if available
         if (typeof playSound === 'function') {
             playSound('dash');
         }
