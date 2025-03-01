@@ -1946,49 +1946,33 @@
             }
         });
 
-        // Replace the current skill system initialization with this approach
+        // Replace the current skill system initialization with this simpler approach
         // Initialize skill system
         let skillSystem = null;
 
-        // Add a script tag for skills.js
+        // Add a script tag for skills.js with an onload handler
         const skillScript = document.createElement('script');
         skillScript.src = 'skills.js';
-        document.body.appendChild(skillScript);
-
-        // Function to initialize skills
-        function initSkillSystem() {
-            // Check if both the character and skill system classes are available
-            if (window.playerCharacter && window.SkillSystem) {
-                // Create skill system
-                skillSystem = new SkillSystem(playerCharacter);
-                
-                // Give player some skill points based on level
-                skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
-                
-                logDebug("Skill system initialized");
-                return true;
-            }
-            return false;
-        }
-
-        // Try to initialize skills periodically until successful
-        let skillInitAttempts = 0;
-        const maxSkillInitAttempts = 10;
-
-        function tryInitSkills() {
-            if (skillInitAttempts >= maxSkillInitAttempts) {
-                logDebug("Failed to initialize skill system after multiple attempts");
-                return;
-            }
+        skillScript.onload = function() {
+            logDebug("Skills.js loaded successfully");
             
-            if (!initSkillSystem()) {
-                skillInitAttempts++;
-                setTimeout(tryInitSkills, 500);
-            }
-        }
-
-        // Start trying to initialize skills after a short delay
-        setTimeout(tryInitSkills, 1000);
+            // Wait a bit longer to ensure character is fully loaded
+            setTimeout(function() {
+                if (window.playerCharacter) {
+                    try {
+                        skillSystem = new SkillSystem(playerCharacter);
+                        skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+                        logDebug("Skill system initialized successfully");
+                    } catch (error) {
+                        logDebug("Error initializing skill system: " + error.message);
+                        console.error(error);
+                    }
+                } else {
+                    logDebug("Cannot initialize skills - playerCharacter not found");
+                }
+            }, 2000);
+        };
+        document.body.appendChild(skillScript);
     </script>
 </body>
 </html>
