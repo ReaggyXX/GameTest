@@ -1947,59 +1947,71 @@
         });
 
         // Replace the current skill system initialization with this approach
-        // Initialize skill system
+        // Initialize character and skill system
         let skillSystem = null;
 
-        // Add a script tag for skills.js
-        const skillScript = document.createElement('script');
-        skillScript.src = 'skills.js';
-        document.body.appendChild(skillScript);
-
-        // Create a function to initialize the character first
-        function initializeCharacter() {
-            // Check if character.js is loaded
-            if (typeof Character === 'undefined') {
-                logDebug("Character class not loaded yet, waiting...");
-                setTimeout(initializeCharacter, 500);
+        // Create the character first
+        function createPlayerCharacter() {
+            if (!window.Character) {
+                logDebug("Character class not loaded yet");
+                setTimeout(createPlayerCharacter, 500);
                 return;
             }
             
-            // Create the character if it doesn't exist
-            if (!window.playerCharacter) {
-                logDebug("Creating player character");
-                window.playerCharacter = new Character({
-                    name: playerName,
-                    health: 100,
-                    maxHealth: 100,
-                    mana: 50,
-                    maxMana: 50,
-                    strength: 10,
-                    defense: 5,
-                    level: 1,
-                    experience: 0
-                });
-                
-                // Initialize inventory after character is created
-                initInventory();
-                
-                // Now initialize the skill system
-                initSkillSystem();
+            logDebug("Creating player character");
+            playerCharacter = new Character({
+                name: playerName || "Player",
+                health: 100,
+                maxHealth: 100,
+                mana: 50,
+                maxMana: 50,
+                strength: 10,
+                defense: 5,
+                level: 1,
+                experience: 0
+            });
+            
+            // Make it globally accessible
+            window.playerCharacter = playerCharacter;
+            
+            // Now that character is created, initialize inventory and skills
+            initInventory();
+            
+            // Wait a bit before initializing skills to ensure everything is ready
+            setTimeout(() => {
+                if (window.SkillSystem) {
+                    initSkillSystem();
+                } else {
+                    logDebug("SkillSystem not loaded yet, waiting...");
+                    // Check again in a second
+                    setTimeout(() => {
+                        if (window.SkillSystem) {
+                            initSkillSystem();
+                        } else {
+                            logDebug("Failed to load SkillSystem");
+                        }
+                    }, 1000);
+                }
+            }, 500);
+            
+            logDebug("Player character created successfully");
+        }
+
+        // Initialize inventory
+        function initInventory() {
+            if (window.Item && window.Inventory) {
+                playerInventory = new Inventory();
+                playerInventory.addItem(Item.createApple());
+                logDebug("Inventory system initialized");
             } else {
-                // Character already exists, just initialize skills
-                initSkillSystem();
+                logDebug("Inventory classes not loaded yet");
             }
         }
 
-        // Function to initialize the skill system
+        // Initialize skill system
         function initSkillSystem() {
-            // Make sure both character and SkillSystem are available
-            if (!window.playerCharacter || typeof SkillSystem === 'undefined') {
-                logDebug("Cannot initialize skills yet - waiting for dependencies");
-                setTimeout(initSkillSystem, 500);
-                return;
-            }
-            
             try {
+                logDebug("Initializing skill system...");
                 skillSystem = new SkillSystem(playerCharacter);
                 skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
                 logDebug("Skill system initialized successfully");
@@ -2009,8 +2021,8 @@
             }
         }
 
-        // Start the initialization process
-        setTimeout(initializeCharacter, 1000);
+        // Start the character creation process after a delay
+        setTimeout(createPlayerCharacter, 1000);
     </script>
 </body>
 </html>
