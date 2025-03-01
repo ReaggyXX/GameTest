@@ -738,9 +738,7 @@
                     updateSkillCooldowns();
 
                     // Update player attacks
-                    if (isAttacking) {
-                        attackPlayers();
-                    }
+                    attackEnemies();
                     
                     // Render scene
                     renderer.render(scene, camera);
@@ -1286,7 +1284,7 @@
             document.addEventListener('mousedown', function(event) {
                 if (event.button === 0) { // Left mouse button
                     isAttacking = true;
-                    attackPlayers();
+                    attackEnemies();
                 }
             });
 
@@ -1493,37 +1491,34 @@
             createSkybox();
 
             // Modify the attackEnemies function to add visual effects
-            function attackPlayers() {
+            function attackEnemies() {
                 if (!isAttacking) return;
 
                 // Create sword slash effect
                 createSwordSlashEffect();
 
-                // Find players in attack range
-                for (const name in players) {
-                    if (name === playerName) continue; // Skip self
-
-                    const player = players[name];
-                    const distanceToPlayer = Math.sqrt(
-                        Math.pow(player.x - camera.position.x, 2) +
-                        Math.pow(player.z - camera.position.z, 2)
+                // Find enemies in attack range
+                for (const enemy of enemies) {
+                    const distanceToEnemy = Math.sqrt(
+                        Math.pow(enemy.mesh.position.x - camera.position.x, 2) +
+                        Math.pow(enemy.mesh.position.z - camera.position.z, 2)
                     );
 
-                    if (distanceToPlayer < 2) { // Adjust attack range as needed
-                        // Deal damage to player
-                        player.health -= playerCharacter.strength / 2;
+                    if (distanceToEnemy < 2) { // Adjust attack range as needed
+                        // Deal damage to enemy
+                        enemy.health -= playerCharacter.strength / 2;
 
-                        // Show damage number above player
+                        // Show damage number above enemy
                         if (typeof showEnemyDamageNumber === 'function') {
-                            showEnemyDamageNumber(player, playerCharacter.strength / 2);
+                            showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
                         }
 
-                        // Check if player is dead
-                        if (player.health <= 0) {
-                            player.isDead = true;
+                        // Check if enemy is dead
+                        if (enemy.health <= 0) {
+                            enemy.isDead = true;
 
-                            // Handle player death (e.g., respawn)
-                            handlePlayerDeath(player);
+                            // Handle enemy death (e.g., respawn)
+                            handleEnemyDeath(enemy);
                         }
                     }
                 }
@@ -1531,7 +1526,7 @@
                 // Continue attacking if button is still pressed
                 setTimeout(() => {
                     if (isAttacking) {
-                        attackPlayers();
+                        attackEnemies();
                     }
                 }, 500); // Attack every 500ms
             }
@@ -1998,6 +1993,28 @@
 
                 // Update player list or UI as needed
                 updatePlayerList();
+            }
+
+            function handleEnemyDeath(enemy) {
+                // Show death message or effect
+                console.log(`Enemy has died!`);
+
+                // Respawn the enemy after a delay
+                setTimeout(() => {
+                    respawnEnemy(enemy);
+                }, 3000); // Respawn after 3 seconds
+            }
+
+            function respawnEnemy(enemy) {
+                // Reset health
+                enemy.health = 30; // Reset to initial health
+                enemy.isDead = false;
+
+                // Reset position (you can customize this)
+                enemy.mesh.position.set(Math.random() * 80 - 40, 2, Math.random() * 80 - 40); // Random respawn position
+
+                // Update the scene
+                scene.add(enemy.mesh);
             }
         </script>
     </body>
