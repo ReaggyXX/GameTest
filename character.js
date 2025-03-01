@@ -24,6 +24,14 @@ class Character {
         this.defense = 5;
         this.speed = 10;
         
+        // Movement abilities
+        this.isSprinting = false;
+        this.sprintMultiplier = 1.5;
+        this.isDucking = false;
+        this.canDoubleJump = true;
+        this.jumpCount = 0;
+        this.maxJumps = 2;
+        
         // Inventory and equipment
         this.inventory = [];
         this.equipment = {
@@ -162,6 +170,44 @@ class Character {
         this.abilities.push(ability);
     }
     
+    // Movement methods
+    startSprinting() {
+        this.isSprinting = true;
+        return this.getCurrentSpeed();
+    }
+    
+    stopSprinting() {
+        this.isSprinting = false;
+        return this.getCurrentSpeed();
+    }
+    
+    getCurrentSpeed() {
+        return this.isSprinting ? this.speed * this.sprintMultiplier : this.speed;
+    }
+    
+    duck() {
+        this.isDucking = true;
+        return this.isDucking;
+    }
+    
+    standUp() {
+        this.isDucking = false;
+        return this.isDucking;
+    }
+    
+    jump() {
+        if (this.jumpCount < this.maxJumps) {
+            this.jumpCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    land() {
+        this.jumpCount = 0;
+        return true;
+    }
+    
     // Get character data for saving or sending to server
     toJSON() {
         return {
@@ -179,6 +225,12 @@ class Character {
             strength: this.strength,
             defense: this.defense,
             speed: this.speed,
+            isSprinting: this.isSprinting,
+            sprintMultiplier: this.sprintMultiplier,
+            isDucking: this.isDucking,
+            canDoubleJump: this.canDoubleJump,
+            jumpCount: this.jumpCount,
+            maxJumps: this.maxJumps,
             inventory: this.inventory,
             equipment: this.equipment,
             skills: this.skills,
@@ -205,6 +257,13 @@ class Character {
         character.strength = data.strength || 10;
         character.defense = data.defense || 5;
         character.speed = data.speed || 10;
+        
+        character.isSprinting = data.isSprinting || false;
+        character.sprintMultiplier = data.sprintMultiplier || 1.5;
+        character.isDucking = data.isDucking || false;
+        character.canDoubleJump = data.canDoubleJump !== undefined ? data.canDoubleJump : true;
+        character.jumpCount = data.jumpCount || 0;
+        character.maxJumps = data.maxJumps || 2;
         
         character.inventory = data.inventory || [];
         character.equipment = data.equipment || {
