@@ -1946,33 +1946,71 @@
             }
         });
 
-        // Replace the current skill system initialization with this simpler approach
+        // Replace the current skill system initialization with this approach
         // Initialize skill system
         let skillSystem = null;
 
-        // Add a script tag for skills.js with an onload handler
+        // Add a script tag for skills.js
         const skillScript = document.createElement('script');
         skillScript.src = 'skills.js';
-        skillScript.onload = function() {
-            logDebug("Skills.js loaded successfully");
-            
-            // Wait a bit longer to ensure character is fully loaded
-            setTimeout(function() {
-                if (window.playerCharacter) {
-                    try {
-                        skillSystem = new SkillSystem(playerCharacter);
-                        skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
-                        logDebug("Skill system initialized successfully");
-                    } catch (error) {
-                        logDebug("Error initializing skill system: " + error.message);
-                        console.error(error);
-                    }
-                } else {
-                    logDebug("Cannot initialize skills - playerCharacter not found");
-                }
-            }, 2000);
-        };
         document.body.appendChild(skillScript);
+
+        // Create a function to initialize the character first
+        function initializeCharacter() {
+            // Check if character.js is loaded
+            if (typeof Character === 'undefined') {
+                logDebug("Character class not loaded yet, waiting...");
+                setTimeout(initializeCharacter, 500);
+                return;
+            }
+            
+            // Create the character if it doesn't exist
+            if (!window.playerCharacter) {
+                logDebug("Creating player character");
+                window.playerCharacter = new Character({
+                    name: playerName,
+                    health: 100,
+                    maxHealth: 100,
+                    mana: 50,
+                    maxMana: 50,
+                    strength: 10,
+                    defense: 5,
+                    level: 1,
+                    experience: 0
+                });
+                
+                // Initialize inventory after character is created
+                initInventory();
+                
+                // Now initialize the skill system
+                initSkillSystem();
+            } else {
+                // Character already exists, just initialize skills
+                initSkillSystem();
+            }
+        }
+
+        // Function to initialize the skill system
+        function initSkillSystem() {
+            // Make sure both character and SkillSystem are available
+            if (!window.playerCharacter || typeof SkillSystem === 'undefined') {
+                logDebug("Cannot initialize skills yet - waiting for dependencies");
+                setTimeout(initSkillSystem, 500);
+                return;
+            }
+            
+            try {
+                skillSystem = new SkillSystem(playerCharacter);
+                skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+                logDebug("Skill system initialized successfully");
+            } catch (error) {
+                logDebug("Error initializing skill system: " + error.message);
+                console.error(error);
+            }
+        }
+
+        // Start the initialization process
+        setTimeout(initializeCharacter, 1000);
     </script>
 </body>
 </html>
