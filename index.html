@@ -1920,6 +1920,15 @@
                 // Show death message or effect
                 console.log(`Enemy has died!`);
 
+                // Award experience to the player
+                const xpGained = 20; // Set the amount of experience to gain
+                playerCharacter.gainExperience(xpGained);
+
+                // Show XP gained message
+                if (typeof showXpGainedMessage === 'function') {
+                    showXpGainedMessage(xpGained);
+                }
+
                 // Respawn the enemy after a delay
                 setTimeout(() => {
                     respawnEnemy(enemy);
