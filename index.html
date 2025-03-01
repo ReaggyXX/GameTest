@@ -1,597 +1,1161 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Map with Multiplayer</title>
-    <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            font-family: Arial, sans-serif;
-        }
-        canvas { 
-            display: block; 
-        }
-        #info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            background-color: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 5px;
-        }
-        #playerName {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 10px;
-            background-color: rgba(0,0,0,0.5);
-            color: white;
-            border-radius: 5px;
-        }
-        #playerList {
-            position: absolute;
-            top: 60px;
-            right: 10px;
-            padding: 10px;
-            background-color: rgba(0,0,0,0.5);
-            color: white;
-            border-radius: 5px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        #statusIndicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: red;
-            display: inline-block;
-            margin-right: 5px;
-        }
-        .online {
-            background-color: #00ff00 !important;
-        }
-        .mobileButton {
-            width: 40px;
-            height: 40px;
-            background-color: rgba(0,0,0,0.5);
-            color: white;
-            border: 1px solid white;
-            border-radius: 5px;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        #mobileJump {
-            width: 100%;
-        }
-        
-        @media (max-width: 768px) {
-            #mobileControls, #lookControls {
-                display: block;
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>3D Map with Multiplayer</title>
+        <style>
+            body { 
+                margin: 0; 
+                overflow: hidden; 
+                font-family: Arial, sans-serif;
             }
-        }
-        
-        /* Add inventory notification style */
-        #itemPickupNotification {
-            position: absolute;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            font-size: 16px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-    </style>
-</head>
-<body>
-    <div id="versionInfo" style="position: absolute; top: 5px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.5); color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; z-index: 100;">
-        Version 0.1
-    </div>
-    <div id="info">
-        WASD to move, Mouse to look around
-        <div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>
-    </div>
-    <div id="playerName">
-        <input type="text" id="nameInput" placeholder="Enter your name">
-        <button id="setName">Set Name</button>
-    </div>
-    <div id="playerList">
-        <h3>Players Online</h3>
-        <ul id="players"></ul>
-    </div>
-    <div id="chatContainer" style="position: absolute; left: 10px; bottom: 10px; width: 300px; background-color: rgba(0,0,0,0.5); color: white; border-radius: 5px; padding: 10px; display: flex; flex-direction: column;">
-        <div id="chatMessages" style="height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
-        <div style="display: flex;">
-            <input type="text" id="chatInput" placeholder="Type a message..." style="flex-grow: 1; padding: 5px; border-radius: 3px; border: none; margin-right: 5px;">
-            <button id="sendChat" style="padding: 5px 10px; border-radius: 3px; border: none; background-color: #4CAF50; color: white;">Send</button>
-        </div>
-    </div>
-
-    <div id="mobileControls" style="position: absolute; bottom: 170px; left: 10px; display: none;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 5px; width: 150px;">
-            <button id="mobileUp" class="mobileButton" style="grid-column: 2; grid-row: 1;">↑</button>
-            <button id="mobileLeft" class="mobileButton" style="grid-column: 1; grid-row: 2;">←</button>
-            <button id="mobileDown" class="mobileButton" style="grid-column: 2; grid-row: 2;">↓</button>
-            <button id="mobileRight" class="mobileButton" style="grid-column: 3; grid-row: 2;">→</button>
-            <button id="mobileJump" class="mobileButton" style="grid-column: 2; grid-row: 3;">Jump</button>
-        </div>
-    </div>
-
-    <div id="lookControls" style="position: absolute; bottom: 170px; right: 10px; display: none;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 5px; width: 150px;">
-            <button id="lookUp" class="mobileButton" style="grid-column: 2; grid-row: 1;">↑</button>
-            <button id="lookLeft" class="mobileButton" style="grid-column: 1; grid-row: 2;">←</button>
-            <button id="lookDown" class="mobileButton" style="grid-column: 2; grid-row: 2;">↓</button>
-            <button id="lookRight" class="mobileButton" style="grid-column: 3; grid-row: 2;">→</button>
-        </div>
-    </div>
-
-    <div id="controlToggle" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.5); color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
-        Toggle Mobile Controls
-    </div>
-
-    <!-- Add item pickup notification -->
-    <div id="itemPickupNotification"></div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    <script src="character.js"></script>
-    <script src="inventory.js"></script>
-    <script src="skills.js"></script>
-    <script>
-        // Scene setup
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb); // Sky blue background
-        
-        // Camera setup
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5);
-        
-        // Renderer setup
-        const renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            alpha: false,
-            powerPreference: "high-performance"
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
-        renderer.setClearColor(0x87ceeb, 1); // Set clear color explicitly
-        document.body.appendChild(renderer.domElement);
-
-        // Add this after the renderer setup to force a render
-        renderer.render(scene, camera);
-        logDebug("Initial render complete");
-        
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Increase intensity
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Increase intensity
-        directionalLight.position.set(1, 1, 1);
-        scene.add(directionalLight);
-        
-        // Add a hemisphere light for better outdoor lighting
-        const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
-        scene.add(hemisphereLight);
-        
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x336633,
-            side: THREE.DoubleSide,
-            roughness: 0.8, // Add roughness
-            metalness: 0.2  // Add slight metalness
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true; // Enable shadow receiving
-        scene.add(ground);
-        
-        // Add buildings
-        function createBuilding(x, z, width, height, depth, color) {
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({ color: color });
-            const building = new THREE.Mesh(geometry, material);
-            building.position.set(x, height/2, z);
-            scene.add(building);
-            return building;
-        }
-        
-        // Create some buildings
-        createBuilding(-10, -10, 5, 8, 5, 0x8888ff);
-        createBuilding(10, -8, 4, 5, 4, 0xff8888);
-        createBuilding(-8, 12, 6, 10, 6, 0x88ff88);
-        createBuilding(12, 10, 8, 15, 8, 0xffff88);
-        
-        // Add trees
-        function createTree(x, z) {
-            // Tree trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
-            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.set(x, 1, z);
+            canvas { 
+                display: block; 
+            }
+            #info {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                color: white;
+                background-color: rgba(0,0,0,0.5);
+                padding: 10px;
+                border-radius: 5px;
+            }
+            #playerName {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+                background-color: rgba(0,0,0,0.5);
+                color: white;
+                border-radius: 5px;
+            }
+            #playerList {
+                position: absolute;
+                top: 60px;
+                right: 10px;
+                padding: 10px;
+                background-color: rgba(0,0,0,0.5);
+                color: white;
+                border-radius: 5px;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            #statusIndicator {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: red;
+                display: inline-block;
+                margin-right: 5px;
+            }
+            .online {
+                background-color: #00ff00 !important;
+            }
+            .mobileButton {
+                width: 40px;
+                height: 40px;
+                background-color: rgba(0,0,0,0.5);
+                color: white;
+                border: 1px solid white;
+                border-radius: 5px;
+                font-size: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                user-select: none;
+                -webkit-user-select: none;
+            }
             
-            // Tree top
-            const topGeometry = new THREE.ConeGeometry(2, 4, 8);
-            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-            const top = new THREE.Mesh(topGeometry, topMaterial);
-            top.position.set(x, 4, z);
+            #mobileJump {
+                width: 100%;
+            }
             
-            scene.add(trunk);
-            scene.add(top);
-        }
-        
-        // Create some trees
-        createTree(-15, 0);
-        createTree(15, 5);
-        createTree(0, 15);
-        createTree(-5, -15);
-        createTree(20, -20);
-        
-        // Movement controls
-        let moveForward = false;
-        let moveBackward = false;
-        let moveLeft = false;
-        let moveRight = false;
-        
-        let canJump = true;
-        let velocity = 0;
-        const gravity = 0.2;
-        let isJumping = false;
-        
-        document.addEventListener('keydown', function(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyD': moveRight = true; break;
-                case 'Space': 
-                    if (playerCharacter.jump()) {
-                        velocity = 0.5; // Jump velocity
-                        isJumping = true;
-                    }
-                    break;
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                    playerCharacter.startSprinting();
-                    break;
-                case 'ControlLeft':
-                case 'ControlRight':
-                    playerCharacter.duck();
-                    // Adjust camera height immediately
-                    if (!isJumping) camera.position.y = 1;
-                    break;
+            @media (max-width: 768px) {
+                #mobileControls, #lookControls {
+                    display: block;
+                }
             }
-        });
-        
-        document.addEventListener('keyup', function(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyD': moveRight = false; break;
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                    playerCharacter.stopSprinting();
-                    break;
-                case 'ControlLeft':
-                case 'ControlRight':
-                    playerCharacter.standUp();
-                    // Adjust camera height immediately
-                    if (!isJumping) camera.position.y = 2;
-                    break;
+            
+            /* Add inventory notification style */
+            #itemPickupNotification {
+                position: absolute;
+                bottom: 100px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: rgba(0,0,0,0.7);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-size: 16px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s;
             }
-        });
-        
-        // Mouse look controls
-        let isMouseLocked = false;
-        
-        renderer.domElement.addEventListener('click', function() {
-            if (!isMouseLocked) {
-                renderer.domElement.requestPointerLock();
+        </style>
+    </head>
+    <body>
+        <div id="versionInfo" style="position: absolute; top: 5px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.5); color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; z-index: 100;">
+            Version 0.1
+        </div>
+        <div id="info">
+            WASD to move, Mouse to look around
+            <div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>
+        </div>
+        <div id="playerName">
+            <input type="text" id="nameInput" placeholder="Enter your name">
+            <button id="setName">Set Name</button>
+        </div>
+        <div id="playerList">
+            <h3>Players Online</h3>
+            <ul id="players"></ul>
+        </div>
+        <div id="chatContainer" style="position: absolute; left: 10px; bottom: 10px; width: 300px; background-color: rgba(0,0,0,0.5); color: white; border-radius: 5px; padding: 10px; display: flex; flex-direction: column;">
+            <div id="chatMessages" style="height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
+            <div style="display: flex;">
+                <input type="text" id="chatInput" placeholder="Type a message..." style="flex-grow: 1; padding: 5px; border-radius: 3px; border: none; margin-right: 5px;">
+                <button id="sendChat" style="padding: 5px 10px; border-radius: 3px; border: none; background-color: #4CAF50; color: white;">Send</button>
+            </div>
+        </div>
+
+        <div id="mobileControls" style="position: absolute; bottom: 170px; left: 10px; display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 5px; width: 150px;">
+                <button id="mobileUp" class="mobileButton" style="grid-column: 2; grid-row: 1;">↑</button>
+                <button id="mobileLeft" class="mobileButton" style="grid-column: 1; grid-row: 2;">←</button>
+                <button id="mobileDown" class="mobileButton" style="grid-column: 2; grid-row: 2;">↓</button>
+                <button id="mobileRight" class="mobileButton" style="grid-column: 3; grid-row: 2;">→</button>
+                <button id="mobileJump" class="mobileButton" style="grid-column: 2; grid-row: 3;">Jump</button>
+            </div>
+        </div>
+
+        <div id="lookControls" style="position: absolute; bottom: 170px; right: 10px; display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 5px; width: 150px;">
+                <button id="lookUp" class="mobileButton" style="grid-column: 2; grid-row: 1;">↑</button>
+                <button id="lookLeft" class="mobileButton" style="grid-column: 1; grid-row: 2;">←</button>
+                <button id="lookDown" class="mobileButton" style="grid-column: 2; grid-row: 2;">↓</button>
+                <button id="lookRight" class="mobileButton" style="grid-column: 3; grid-row: 2;">→</button>
+            </div>
+        </div>
+
+        <div id="controlToggle" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.5); color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+            Toggle Mobile Controls
+        </div>
+
+        <!-- Add item pickup notification -->
+        <div id="itemPickupNotification"></div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+        <script src="character.js"></script>
+        <script src="inventory.js"></script>
+        <script src="skills.js"></script>
+        <script>
+            // Scene setup
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+            
+            // Camera setup
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, 5);
+            
+            // Renderer setup
+            const renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: false,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            renderer.setClearColor(0x87ceeb, 1); // Set clear color explicitly
+            document.body.appendChild(renderer.domElement);
+
+            // Add this after the renderer setup to force a render
+            renderer.render(scene, camera);
+            logDebug("Initial render complete");
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Increase intensity
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Increase intensity
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Add a hemisphere light for better outdoor lighting
+            const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
+            scene.add(hemisphereLight);
+            
+            // Ground
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.MeshStandardMaterial({
+                color: 0x336633,
+                side: THREE.DoubleSide,
+                roughness: 0.8, // Add roughness
+                metalness: 0.2  // Add slight metalness
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true; // Enable shadow receiving
+            scene.add(ground);
+            
+            // Add buildings
+            function createBuilding(x, z, width, height, depth, color) {
+                const geometry = new THREE.BoxGeometry(width, height, depth);
+                const material = new THREE.MeshStandardMaterial({ color: color });
+                const building = new THREE.Mesh(geometry, material);
+                building.position.set(x, height/2, z);
+                scene.add(building);
+                return building;
             }
-        });
-        
-        document.addEventListener('pointerlockchange', function() {
-            isMouseLocked = document.pointerLockElement === renderer.domElement;
-        });
-        
-        let pitch = 0;
-        let yaw = 0;
-        
-        document.addEventListener('mousemove', function(event) {
-            if (isMouseLocked) {
-                yaw -= event.movementX * 0.002;
-                pitch -= event.movementY * 0.002;
+            
+            // Create some buildings
+            createBuilding(-10, -10, 5, 8, 5, 0x8888ff);
+            createBuilding(10, -8, 4, 5, 4, 0xff8888);
+            createBuilding(-8, 12, 6, 10, 6, 0x88ff88);
+            createBuilding(12, 10, 8, 15, 8, 0xffff88);
+            
+            // Add trees
+            function createTree(x, z) {
+                // Tree trunk
+                const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
+                const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.set(x, 1, z);
                 
-                // Clamp pitch to avoid flipping
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                // Tree top
+                const topGeometry = new THREE.ConeGeometry(2, 4, 8);
+                const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+                const top = new THREE.Mesh(topGeometry, topMaterial);
+                top.position.set(x, 4, z);
+                
+                scene.add(trunk);
+                scene.add(top);
             }
-        });
-        
-        // Multiplayer
-        const playerColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
-        let players = {};
-        let playerMeshes = {};
-        let playerName = localStorage.getItem('playerName') || "Player" + Math.floor(Math.random() * 1000);
-        let playerColor = parseInt(localStorage.getItem('playerColor')) || playerColors[Math.floor(Math.random() * playerColors.length)];
-        let sessionId = null;
-        let isConnected = false;
-        let socket = null;
-        
-        // Character data
-        let playerCharacter = null;
-        
-        // Try to load character from localStorage
-        const savedCharacterData = localStorage.getItem('playerCharacter');
-        if (savedCharacterData) {
-            try {
-                const characterData = JSON.parse(savedCharacterData);
-                playerCharacter = Character.fromJSON(characterData);
-                // Update name and color if they've changed
-                playerCharacter.name = playerName;
-                playerCharacter.color = playerColor;
-            } catch (e) {
-                console.error('Error loading character data:', e);
+            
+            // Create some trees
+            createTree(-15, 0);
+            createTree(15, 5);
+            createTree(0, 15);
+            createTree(-5, -15);
+            createTree(20, -20);
+            
+            // Movement controls
+            let moveForward = false;
+            let moveBackward = false;
+            let moveLeft = false;
+            let moveRight = false;
+            
+            let canJump = true;
+            let velocity = 0;
+            const gravity = 0.2;
+            let isJumping = false;
+            
+            document.addEventListener('keydown', function(event) {
+                switch (event.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'Space': 
+                        if (playerCharacter.jump()) {
+                            velocity = 0.5; // Jump velocity
+                            isJumping = true;
+                        }
+                        break;
+                    case 'ShiftLeft':
+                    case 'ShiftRight':
+                        playerCharacter.startSprinting();
+                        break;
+                    case 'ControlLeft':
+                    case 'ControlRight':
+                        playerCharacter.duck();
+                        // Adjust camera height immediately
+                        if (!isJumping) camera.position.y = 1;
+                        break;
+                }
+            });
+            
+            document.addEventListener('keyup', function(event) {
+                switch (event.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyD': moveRight = false; break;
+                    case 'ShiftLeft':
+                    case 'ShiftRight':
+                        playerCharacter.stopSprinting();
+                        break;
+                    case 'ControlLeft':
+                    case 'ControlRight':
+                        playerCharacter.standUp();
+                        // Adjust camera height immediately
+                        if (!isJumping) camera.position.y = 2;
+                        break;
+                }
+            });
+            
+            // Mouse look controls
+            let isMouseLocked = false;
+            
+            renderer.domElement.addEventListener('click', function() {
+                if (!isMouseLocked) {
+                    renderer.domElement.requestPointerLock();
+                }
+            });
+            
+            document.addEventListener('pointerlockchange', function() {
+                isMouseLocked = document.pointerLockElement === renderer.domElement;
+            });
+            
+            let pitch = 0;
+            let yaw = 0;
+            
+            document.addEventListener('mousemove', function(event) {
+                if (isMouseLocked) {
+                    yaw -= event.movementX * 0.002;
+                    pitch -= event.movementY * 0.002;
+                    
+                    // Clamp pitch to avoid flipping
+                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                }
+            });
+            
+            // Multiplayer
+            const playerColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+            let players = {};
+            let playerMeshes = {};
+            let playerName = localStorage.getItem('playerName') || "Player" + Math.floor(Math.random() * 1000);
+            let playerColor = parseInt(localStorage.getItem('playerColor')) || playerColors[Math.floor(Math.random() * playerColors.length)];
+            let sessionId = null;
+            let isConnected = false;
+            let socket = null;
+            
+            // Character data
+            let playerCharacter = null;
+            
+            // Try to load character from localStorage
+            const savedCharacterData = localStorage.getItem('playerCharacter');
+            if (savedCharacterData) {
+                try {
+                    const characterData = JSON.parse(savedCharacterData);
+                    playerCharacter = Character.fromJSON(characterData);
+                    // Update name and color if they've changed
+                    playerCharacter.name = playerName;
+                    playerCharacter.color = playerColor;
+                } catch (e) {
+                    console.error('Error loading character data:', e);
+                    playerCharacter = new Character(playerName, playerColor);
+                }
+            } else {
                 playerCharacter = new Character(playerName, playerColor);
             }
-        } else {
-            playerCharacter = new Character(playerName, playerColor);
-        }
-        
-        // Add character stats UI
-        const characterStatsDiv = document.createElement('div');
-        characterStatsDiv.id = 'characterStats';
-        characterStatsDiv.style.position = 'absolute';
-        characterStatsDiv.style.left = '10px';
-        characterStatsDiv.style.top = '100px';
-        characterStatsDiv.style.backgroundColor = 'rgba(0,0,0,0.5)';
-        characterStatsDiv.style.color = 'white';
-        characterStatsDiv.style.padding = '10px';
-        characterStatsDiv.style.borderRadius = '5px';
-        characterStatsDiv.style.maxWidth = '200px';
-        document.body.appendChild(characterStatsDiv);
-        
-        function updateCharacterStatsUI() {
-            characterStatsDiv.innerHTML = `
-                <h3>Character Stats</h3>
-                <div>Level: ${playerCharacter.level}</div>
-                <div>XP: ${playerCharacter.experience}/${playerCharacter.experienceToNextLevel}</div>
-                <div>Health: ${Math.floor(playerCharacter.currentHealth)}/${playerCharacter.maxHealth}</div>
-                <div>Mana: ${Math.floor(playerCharacter.currentMana)}/${playerCharacter.maxMana}</div>
-                <div>Strength: ${playerCharacter.strength}</div>
-                <div>Defense: ${playerCharacter.defense}</div>
-                <div>Speed: ${playerCharacter.speed}</div>
-            `;
-        }
-        
-        // Update character stats initially
-        updateCharacterStatsUI();
-        
-        // Save character data periodically
-        setInterval(() => {
-            localStorage.setItem('playerCharacter', JSON.stringify(playerCharacter.toJSON()));
-        }, 10000); // Save every 10 seconds
-        
-        // Connection status
-        const statusIndicator = document.getElementById('statusIndicator');
-        const statusText = document.getElementById('statusText');
-        
-        // Set player name
-        document.getElementById('nameInput').value = playerName;
-        document.getElementById('setName').addEventListener('click', function() {
-            const newName = document.getElementById('nameInput').value.trim();
-            if (newName) {
-                playerName = newName;
-                localStorage.setItem('playerName', playerName);
-                registerPlayer();
-            }
-        });
-        
-        // Server communication
-        function connectWebSocket() {
-            // For local development, use a fallback if the connection fails
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            let wsUrl = `${protocol}//${window.location.host}`;
             
-            // If we're on a file:// protocol (local development), use a fallback
-            if (window.location.protocol === 'file:') {
-                wsUrl = 'ws://localhost:3000';
-                console.log('Running locally, using fallback WebSocket URL:', wsUrl);
+            // Add character stats UI
+            const characterStatsDiv = document.createElement('div');
+            characterStatsDiv.id = 'characterStats';
+            characterStatsDiv.style.position = 'absolute';
+            characterStatsDiv.style.left = '10px';
+            characterStatsDiv.style.top = '100px';
+            characterStatsDiv.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            characterStatsDiv.style.color = 'white';
+            characterStatsDiv.style.padding = '10px';
+            characterStatsDiv.style.borderRadius = '5px';
+            characterStatsDiv.style.maxWidth = '200px';
+            document.body.appendChild(characterStatsDiv);
+            
+            function updateCharacterStatsUI() {
+                characterStatsDiv.innerHTML = `
+                    <h3>Character Stats</h3>
+                    <div>Level: ${playerCharacter.level}</div>
+                    <div>XP: ${playerCharacter.experience}/${playerCharacter.experienceToNextLevel}</div>
+                    <div>Health: ${Math.floor(playerCharacter.currentHealth)}/${playerCharacter.maxHealth}</div>
+                    <div>Mana: ${Math.floor(playerCharacter.currentMana)}/${playerCharacter.maxMana}</div>
+                    <div>Strength: ${playerCharacter.strength}</div>
+                    <div>Defense: ${playerCharacter.defense}</div>
+                    <div>Speed: ${playerCharacter.speed}</div>
+                `;
             }
             
-            statusText.textContent = 'Connecting...';
+            // Update character stats initially
+            updateCharacterStatsUI();
             
-            try {
-                socket = new WebSocket(wsUrl);
-                
-                socket.onopen = function() {
-                    console.log('WebSocket connected');
-                    isConnected = true;
-                    statusIndicator.classList.add('online');
-                    statusText.textContent = 'Connected';
+            // Save character data periodically
+            setInterval(() => {
+                localStorage.setItem('playerCharacter', JSON.stringify(playerCharacter.toJSON()));
+            }, 10000); // Save every 10 seconds
+            
+            // Connection status
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            // Set player name
+            document.getElementById('nameInput').value = playerName;
+            document.getElementById('setName').addEventListener('click', function() {
+                const newName = document.getElementById('nameInput').value.trim();
+                if (newName) {
+                    playerName = newName;
+                    localStorage.setItem('playerName', playerName);
                     registerPlayer();
-                };
-                
-                socket.onclose = function() {
-                    console.log('WebSocket disconnected');
-                    isConnected = false;
-                    statusIndicator.classList.remove('online');
-                    statusText.textContent = 'Disconnected';
-                    setTimeout(connectWebSocket, 3000); // Try to reconnect
-                };
-                
-                socket.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                    isConnected = false;
-                    statusIndicator.classList.remove('online');
-                    statusText.textContent = 'Connection error - running in offline mode';
-                    
-                    // Enable offline mode
-                    enableOfflineMode();
-                };
-                
-                socket.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'registered') {
-                        sessionId = data.id;
-                        console.log('Registered with server, session ID:', sessionId);
-                        
-                        // Send character data to server
-                        socket.send(JSON.stringify({
-                            type: 'characterData',
-                            id: sessionId,
-                            character: playerCharacter.toJSON()
-                        }));
-                    } else if (data.type === 'players') {
-                        updatePlayersList(data.players);
-                    } else if (data.type === 'chat') {
-                        // Display chat message
-                        const messageElement = document.createElement('div');
-                        messageElement.innerHTML = `<strong>${data.name}:</strong> ${data.message}`;
-                        chatMessages.appendChild(messageElement);
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                        
-                        // Also display chat bubble above player
-                        if (data.name !== playerName && playerMeshes[data.name]) {
-                            showChatBubble(data.name, data.message);
-                        }
-                    } else if (data.type === 'characterUpdate') {
-                        // Handle character updates from server
-                        if (data.id === sessionId) {
-                            // Update our character with server data
-                            playerCharacter = Character.fromJSON(data.character);
-                            updateCharacterStatsUI();
-                        }
-                    }
-                };
-            } catch (error) {
-                console.error('Error creating WebSocket:', error);
-                statusText.textContent = 'Connection error - running in offline mode';
-                enableOfflineMode();
-            }
-        }
-        
-        function registerPlayer() {
-            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+                }
+            });
             
-            // If we already have a session ID, send an update instead of registering again
-            if (sessionId) {
+            // Server communication
+            function connectWebSocket() {
+                // For local development, use a fallback if the connection fails
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                let wsUrl = `${protocol}//${window.location.host}`;
+                
+                // If we're on a file:// protocol (local development), use a fallback
+                if (window.location.protocol === 'file:') {
+                    wsUrl = 'ws://localhost:3000';
+                    console.log('Running locally, using fallback WebSocket URL:', wsUrl);
+                }
+                
+                statusText.textContent = 'Connecting...';
+                
+                try {
+                    socket = new WebSocket(wsUrl);
+                    
+                    socket.onopen = function() {
+                        console.log('WebSocket connected');
+                        isConnected = true;
+                        statusIndicator.classList.add('online');
+                        statusText.textContent = 'Connected';
+                        registerPlayer();
+                    };
+                    
+                    socket.onclose = function() {
+                        console.log('WebSocket disconnected');
+                        isConnected = false;
+                        statusIndicator.classList.remove('online');
+                        statusText.textContent = 'Disconnected';
+                        setTimeout(connectWebSocket, 3000); // Try to reconnect
+                    };
+                    
+                    socket.onerror = function(error) {
+                        console.error('WebSocket error:', error);
+                        isConnected = false;
+                        statusIndicator.classList.remove('online');
+                        statusText.textContent = 'Connection error - running in offline mode';
+                        
+                        // Enable offline mode
+                        enableOfflineMode();
+                    };
+                    
+                    socket.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'registered') {
+                            sessionId = data.id;
+                            console.log('Registered with server, session ID:', sessionId);
+                            
+                            // Send character data to server
+                            socket.send(JSON.stringify({
+                                type: 'characterData',
+                                id: sessionId,
+                                character: playerCharacter.toJSON()
+                            }));
+                        } else if (data.type === 'players') {
+                            updatePlayersList(data.players);
+                        } else if (data.type === 'chat') {
+                            // Display chat message
+                            const messageElement = document.createElement('div');
+                            messageElement.innerHTML = `<strong>${data.name}:</strong> ${data.message}`;
+                            chatMessages.appendChild(messageElement);
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                            
+                            // Also display chat bubble above player
+                            if (data.name !== playerName && playerMeshes[data.name]) {
+                                showChatBubble(data.name, data.message);
+                            }
+                        } else if (data.type === 'characterUpdate') {
+                            // Handle character updates from server
+                            if (data.id === sessionId) {
+                                // Update our character with server data
+                                playerCharacter = Character.fromJSON(data.character);
+                                updateCharacterStatsUI();
+                            }
+                        }
+                    };
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                    statusText.textContent = 'Connection error - running in offline mode';
+                    enableOfflineMode();
+                }
+            }
+            
+            function registerPlayer() {
+                if (!socket || socket.readyState !== WebSocket.OPEN) return;
+                
+                // If we already have a session ID, send an update instead of registering again
+                if (sessionId) {
+                    socket.send(JSON.stringify({
+                        type: 'rename',
+                        id: sessionId,
+                        name: playerName
+                    }));
+                } else {
+                    socket.send(JSON.stringify({
+                        type: 'register',
+                        name: playerName,
+                        x: camera.position.x,
+                        y: camera.position.y,
+                        z: camera.position.z,
+                        color: playerColor,
+                        rotation: yaw
+                    }));
+                }
+            }
+            
+            function updatePlayerPosition() {
+                if (!socket || socket.readyState !== WebSocket.OPEN || !sessionId) return;
+                
                 socket.send(JSON.stringify({
-                    type: 'rename',
+                    type: 'update',
                     id: sessionId,
-                    name: playerName
+                    x: camera.position.x,
+                    y: camera.position.y,
+                    z: camera.position.z,
+                    rotation: yaw,
+                    jumping: isJumping
                 }));
-            } else {
-                socket.send(JSON.stringify({
-                    type: 'register',
-                    name: playerName,
+            }
+            
+            function updatePlayersList(playersList) {
+                // Clear old players
+                players = {};
+                
+                // Update players from server data
+                playersList.forEach(player => {
+                    if (player.id !== sessionId) {
+                        players[player.name] = {
+                            x: player.x,
+                            y: player.y,
+                            z: player.z,
+                            color: player.color,
+                            rotation: player.rotation,
+                            health: 100,
+                            isDead: false
+                        };
+                    }
+                });
+                
+                // Add yourself to the players list
+                players[playerName] = {
                     x: camera.position.x,
                     y: camera.position.y,
                     z: camera.position.z,
                     color: playerColor,
-                    rotation: yaw
-                }));
+                    rotation: yaw,
+                    health: 100,
+                    isDead: false
+                };
+                
+                updatePlayerList();
             }
-        }
-        
-        function updatePlayerPosition() {
-            if (!socket || socket.readyState !== WebSocket.OPEN || !sessionId) return;
             
-            socket.send(JSON.stringify({
-                type: 'update',
-                id: sessionId,
-                x: camera.position.x,
-                y: camera.position.y,
-                z: camera.position.z,
-                rotation: yaw,
-                jumping: isJumping
-            }));
-        }
-        
-        function updatePlayersList(playersList) {
-            // Clear old players
-            players = {};
-            
-            // Update players from server data
-            playersList.forEach(player => {
-                if (player.id !== sessionId) {
-                    players[player.name] = {
-                        x: player.x,
-                        y: player.y,
-                        z: player.z,
-                        color: player.color,
-                        rotation: player.rotation
-                    };
+            function updatePlayerMeshes() {
+                // Remove old meshes
+                for (const name in playerMeshes) {
+                    if (!players[name]) {
+                        scene.remove(playerMeshes[name]);
+                        delete playerMeshes[name];
+                    }
                 }
-            });
+                
+                // Update or add meshes
+                for (const name in players) {
+                    if (name === playerName) continue; // Skip self
+                    
+                    const player = players[name];
+                    
+                    if (!playerMeshes[name]) {
+                        // Create player mesh using cylinder for body and sphere for head
+                        const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5, 8);
+                        const headGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                        
+                        const material = new THREE.MeshStandardMaterial({ color: player.color });
+                        
+                        const body = new THREE.Mesh(bodyGeometry, material);
+                        const head = new THREE.Mesh(headGeometry, material);
+                        
+                        head.position.y = 1.0;
+                        
+                        // Create a group to hold the body parts
+                        const playerGroup = new THREE.Group();
+                        playerGroup.add(body);
+                        playerGroup.add(head);
+                        
+                        // Add name label
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = 256;
+                        canvas.height = 64;
+                        context.font = '24px Arial';
+                        context.fillStyle = '#ffffff';
+                        context.textAlign = 'center';
+                        context.fillText(name, 128, 24);
+                        
+                        const texture = new THREE.CanvasTexture(canvas);
+                        const labelMaterial = new THREE.SpriteMaterial({
+                            map: texture,
+                            transparent: true
+                        });
+                        const label = new THREE.Sprite(labelMaterial);
+                        label.position.y = 2.5;
+                        label.scale.set(5, 1.25, 1);
+                        
+                        playerGroup.add(label);
+                        
+                        scene.add(playerGroup);
+                        playerMeshes[name] = playerGroup;
+                    }
+                    
+                    // Update position
+                    playerMeshes[name].position.set(player.x, player.y, player.z);
+                    
+                    // Update rotation (assume players look in direction of movement)
+                    if (player.rotation !== undefined) {
+                        playerMeshes[name].rotation.y = player.rotation;
+                    }
+                }
+            }
             
-            // Add yourself to the players list
+            function updatePlayerList() {
+                const playersList = document.getElementById('players');
+                playersList.innerHTML = '';
+                
+                for (const name in players) {
+                    const li = document.createElement('li');
+                    if (name === playerName) {
+                        li.textContent = name + ' (You)';
+                        li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
+                        li.style.fontWeight = 'bold';
+                    } else {
+                        li.textContent = name;
+                        li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
+                    }
+                    playersList.appendChild(li);
+                }
+                
+                // Add yourself if not in list
+                if (!players[playerName]) {
+                    const li = document.createElement('li');
+                    li.textContent = playerName + ' (You)';
+                    li.style.color = '#' + playerColor.toString(16).padStart(6, '0');
+                    li.style.fontWeight = 'bold';
+                    playersList.appendChild(li);
+                }
+            }
+            
+            // Animation loop
+            const clock = new THREE.Clock();
+            let lastUpdateTime = 0;
+            let lastCharacterUpdateTime = 0;
+            let lastLoggedTime = 0;
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                try {
+                    const delta = clock.getDelta();
+                    const elapsedTime = clock.getElapsedTime();
+                    
+                    // Get move speed from character (considers sprinting)
+                    const moveSpeed = playerCharacter.getCurrentSpeed() * delta;
+                    
+                    // Log occasional debug info
+                    if (Math.floor(elapsedTime) % 10 === 0 && Math.floor(elapsedTime) !== lastLoggedTime) {
+                        lastLoggedTime = Math.floor(elapsedTime);
+                        logDebug(`Running for ${lastLoggedTime}s, FPS: ${Math.round(1/delta)}`);
+                    }
+                    
+                    // Update character stats
+                    playerCharacter.update();
+                    
+                    // Update character UI every 0.5 seconds
+                    if (elapsedTime - lastCharacterUpdateTime > 0.5) {
+                        updateCharacterStatsUI();
+                        lastCharacterUpdateTime = elapsedTime;
+                    }
+                    
+                    // Update enemies
+                    updateEnemies(delta);
+                    
+                    // Update ambient particles if they exist
+                    if (typeof updateAmbientParticles === 'function') {
+                        updateAmbientParticles();
+                    }
+                    
+                    // Update camera rotation from mouse
+                    camera.rotation.order = 'YXZ';
+                    camera.rotation.y = yaw;
+                    camera.rotation.x = pitch;
+                    
+                    // Calculate movement direction
+                    const direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+                    
+                    const sideDirection = new THREE.Vector3(-direction.z, 0, direction.x);
+                    
+                    // Apply movement
+                    if (moveForward) camera.position.addScaledVector(direction, moveSpeed);
+                    if (moveBackward) camera.position.addScaledVector(direction, -moveSpeed);
+                    if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
+                    if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
+                    
+                    // Handle jumping and gravity
+                    if (isJumping) {
+                        camera.position.y += velocity;
+                        velocity -= gravity * delta * 10;
+                        
+                        // Check if we've landed
+                        if (camera.position.y <= 2) {
+                            camera.position.y = 2;
+                            velocity = 0;
+                            isJumping = false;
+                            playerCharacter.land(); // Reset jump count when landing
+                        }
+                    } else {
+                        // Keep player on the ground when not jumping
+                        camera.position.y = playerCharacter.isDucking ? 1 : 2; // Lower camera when ducking
+                    }
+                    
+                    // Update server with player position (limit frequency)
+                    if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
+                        updatePlayerPosition();
+                        lastUpdateTime = elapsedTime;
+                    }
+                    
+                    // Update player meshes
+                    updatePlayerMeshes();
+                    
+                    // Check for loot collection
+                    checkLootCollection();
+                    
+                    // Update skill cooldowns
+                    updateSkillCooldowns();
+
+                    // Update player attacks
+                    if (isAttacking) {
+                        attackPlayers();
+                    }
+                    
+                    // Render scene
+                    renderer.render(scene, camera);
+                } catch (error) {
+                    console.error('Error in animation loop:', error);
+                    logDebug(`Animation error: ${error.message}`);
+                }
+            }
+            
+            // Start animation
+            animate();
+            
+            // Resize handler
+            window.addEventListener('resize', function() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Initialize player in the local players object
             players[playerName] = {
                 x: camera.position.x,
                 y: camera.position.y,
                 z: camera.position.z,
                 color: playerColor,
-                rotation: yaw
+                rotation: yaw,
+                health: 100,
+                isDead: false
             };
-            
             updatePlayerList();
-        }
-        
-        function updatePlayerMeshes() {
-            // Remove old meshes
-            for (const name in playerMeshes) {
-                if (!players[name]) {
-                    scene.remove(playerMeshes[name]);
-                    delete playerMeshes[name];
+            
+            // Start server communication
+            connectWebSocket();
+            
+            // Handle page visibility changes
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    // When tab becomes active again, reconnect if needed
+                    if (!isConnected) {
+                        connectWebSocket();
+                    }
+                }
+            });
+            
+            // Clean up on page unload
+            window.addEventListener('beforeunload', function() {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.close();
+                }
+            });
+
+            // Chat functionality
+            const chatInput = document.getElementById('chatInput');
+            const chatMessages = document.getElementById('chatMessages');
+            const sendChatButton = document.getElementById('sendChat');
+
+            // Send chat message when Send button is clicked
+            sendChatButton.addEventListener('click', sendChatMessage);
+
+            // Send chat message when Enter key is pressed in chat input
+            chatInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    sendChatMessage();
+                }
+            });
+
+            function sendChatMessage() {
+                const message = chatInput.value.trim();
+                if (message && socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        type: 'chat',
+                        id: sessionId,
+                        name: playerName,
+                        message: message
+                    }));
+                    chatInput.value = '';
                 }
             }
-            
-            // Update or add meshes
-            for (const name in players) {
-                if (name === playerName) continue; // Skip self
+
+            // Function to show chat bubble above player
+            function showChatBubble(playerName, message) {
+                if (!playerMeshes[playerName]) return;
                 
-                const player = players[name];
+                // Remove existing chat bubble if any
+                const existingBubble = playerMeshes[playerName].getObjectByName('chatBubble');
+                if (existingBubble) {
+                    playerMeshes[playerName].remove(existingBubble);
+                }
                 
-                if (!playerMeshes[name]) {
-                    // Create player mesh using cylinder for body and sphere for head
-                    const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5, 8);
-                    const headGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                // Create chat bubble
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 256;
+                canvas.height = 128;
+                
+                // Draw bubble background
+                context.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                context.strokeStyle = '#000000';
+                context.lineWidth = 2;
+                roundRect(context, 10, 10, canvas.width - 20, canvas.height - 20, 10, true, true);
+                
+                // Draw text
+                context.font = '16px Arial';
+                context.fillStyle = '#000000';
+                context.textAlign = 'center';
+                
+                // Word wrap the message
+                const words = message.split(' ');
+                let line = '';
+                let y = 40;
+                for (let i = 0; i < words.length; i++) {
+                    const testLine = line + words[i] + ' ';
+                    const metrics = context.measureText(testLine);
+                    if (metrics.width > canvas.width - 40 && i > 0) {
+                        context.fillText(line, canvas.width / 2, y);
+                        line = words[i] + ' ';
+                        y += 20;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                context.fillText(line, canvas.width / 2, y);
+                
+                // Create sprite with the canvas texture
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true
+                });
+                const sprite = new THREE.Sprite(material);
+                sprite.name = 'chatBubble';
+                sprite.position.y = 3.5;
+                sprite.scale.set(5, 2.5, 1);
+                
+                playerMeshes[playerName].add(sprite);
+                
+                // Remove bubble after 5 seconds
+                setTimeout(() => {
+                    if (playerMeshes[playerName]) {
+                        const bubble = playerMeshes[playerName].getObjectByName('chatBubble');
+                        if (bubble) {
+                            playerMeshes[playerName].remove(bubble);
+                        }
+                    }
+                }, 5000);
+            }
+
+            // Helper function to draw rounded rectangles
+            function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+                ctx.beginPath();
+                ctx.moveTo(x + radius, y);
+                ctx.lineTo(x + width - radius, y);
+                ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                ctx.lineTo(x + width, y + height - radius);
+                ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                ctx.lineTo(x + radius, y + height);
+                ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                ctx.lineTo(x, y + radius);
+                ctx.quadraticCurveTo(x, y, x + radius, y);
+                ctx.closePath();
+                if (fill) {
+                    ctx.fill();
+                }
+                if (stroke) {
+                    ctx.stroke();
+                }
+            }
+
+            // Mobile controls
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const mobileControls = document.getElementById('mobileControls');
+            const lookControls = document.getElementById('lookControls');
+            const controlToggle = document.getElementById('controlToggle');
+
+            // Show mobile controls by default on mobile devices
+            if (isMobile) {
+                mobileControls.style.display = 'block';
+                lookControls.style.display = 'block';
+                
+                // Make info text smaller on mobile
+                document.getElementById('info').style.fontSize = '12px';
+            }
+
+            // Toggle mobile controls visibility
+            controlToggle.addEventListener('click', function() {
+                if (mobileControls.style.display === 'none') {
+                    mobileControls.style.display = 'block';
+                    lookControls.style.display = 'block';
+                } else {
+                    mobileControls.style.display = 'none';
+                    lookControls.style.display = 'none';
+                }
+            });
+
+            // Movement buttons
+            const mobileUp = document.getElementById('mobileUp');
+            const mobileDown = document.getElementById('mobileDown');
+            const mobileLeft = document.getElementById('mobileLeft');
+            const mobileRight = document.getElementById('mobileRight');
+            const mobileJump = document.getElementById('mobileJump');
+
+            // Look buttons
+            const lookUp = document.getElementById('lookUp');
+            const lookDown = document.getElementById('lookDown');
+            const lookLeft = document.getElementById('lookLeft');
+            const lookRight = document.getElementById('lookRight');
+
+            // Touch events for movement buttons
+            mobileUp.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                moveForward = true;
+            });
+            mobileUp.addEventListener('touchend', function() {
+                moveForward = false;
+            });
+
+            mobileDown.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                moveBackward = true;
+            });
+            mobileDown.addEventListener('touchend', function() {
+                moveBackward = false;
+            });
+
+            mobileLeft.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                moveLeft = true;
+            });
+            mobileLeft.addEventListener('touchend', function() {
+                moveLeft = false;
+            });
+
+            mobileRight.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                moveRight = true;
+            });
+            mobileRight.addEventListener('touchend', function() {
+                moveRight = false;
+            });
+
+            mobileJump.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                if (playerCharacter.jump()) {
+                    velocity = 0.5;
+                    isJumping = true;
+                }
+            });
+
+            // Look controls
+            const lookSensitivity = 0.05;
+
+            // Replace the existing look control event listeners with these improved versions
+            lookUp.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const lookInterval = setInterval(function() {
+                    pitch -= lookSensitivity;
+                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                }, 16); // ~60fps
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookUp.addEventListener('touchend', stopLooking);
+                lookUp.addEventListener('touchcancel', stopLooking);
+            });
+
+            lookDown.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const lookInterval = setInterval(function() {
+                    pitch += lookSensitivity;
+                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookDown.addEventListener('touchend', stopLooking);
+                lookDown.addEventListener('touchcancel', stopLooking);
+            });
+
+            lookLeft.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const lookInterval = setInterval(function() {
+                    yaw += lookSensitivity;
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookLeft.addEventListener('touchend', stopLooking);
+                lookLeft.addEventListener('touchcancel', stopLooking);
+            });
+
+            lookRight.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const lookInterval = setInterval(function() {
+                    yaw -= lookSensitivity;
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookRight.addEventListener('touchend', stopLooking);
+                lookRight.addEventListener('touchcancel', stopLooking);
+            });
+
+            // Also update the mouse controls for desktop testing
+            lookUp.addEventListener('mousedown', function() {
+                const lookInterval = setInterval(function() {
+                    pitch -= lookSensitivity;
+                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookUp.addEventListener('mouseup', stopLooking);
+                lookUp.addEventListener('mouseleave', stopLooking);
+            });
+
+            lookDown.addEventListener('mousedown', function() {
+                const lookInterval = setInterval(function() {
+                    pitch += lookSensitivity;
+                    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookDown.addEventListener('mouseup', stopLooking);
+                lookDown.addEventListener('mouseleave', stopLooking);
+            });
+
+            lookLeft.addEventListener('mousedown', function() {
+                const lookInterval = setInterval(function() {
+                    yaw += lookSensitivity;
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookLeft.addEventListener('mouseup', stopLooking);
+                lookLeft.addEventListener('mouseleave', stopLooking);
+            });
+
+            lookRight.addEventListener('mousedown', function() {
+                const lookInterval = setInterval(function() {
+                    yaw -= lookSensitivity;
+                }, 16);
+                
+                function stopLooking() {
+                    clearInterval(lookInterval);
+                }
+                
+                lookRight.addEventListener('mouseup', stopLooking);
+                lookRight.addEventListener('mouseleave', stopLooking);
+            });
+
+            // Update info text to include mobile controls info
+            if (isMobile) {
+                document.getElementById('info').innerHTML = 
+                    'Use on-screen controls to move and look around<br>' +
+                    '<div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>';
+            }
+
+            // Enemy system
+            const enemies = [];
+            const MAX_ENEMIES = 5;
+            const ENEMY_SPAWN_INTERVAL = 15000; // 15 seconds
+            const ENEMY_CHASE_RADIUS = 10;
+            const ENEMY_ATTACK_RADIUS = 2;
+            const ENEMY_ATTACK_DAMAGE = 5;
+            const ENEMY_ATTACK_COOLDOWN = 1000; // 1 second
+
+            function createEnemy() {
+                try {
+                    // Random position away from player
+                    let x, z;
+                    do {
+                        x = Math.random() * 80 - 40; // -40 to 40
+                        z = Math.random() * 80 - 40; // -40 to 40
+                    } while (Math.sqrt(Math.pow(x - camera.position.x, 2) + Math.pow(z - camera.position.z, 2)) < 15);
                     
-                    const material = new THREE.MeshStandardMaterial({ color: player.color });
+                    // Create enemy mesh
+                    const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 8);
+                    const headGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+                    
+                    const material = new THREE.MeshStandardMaterial({ color: 0x880000 });
                     
                     const body = new THREE.Mesh(bodyGeometry, material);
                     const head = new THREE.Mesh(headGeometry, material);
                     
-                    head.position.y = 1.0;
+                    head.position.y = 1.2;
                     
                     // Create a group to hold the body parts
-                    const playerGroup = new THREE.Group();
-                    playerGroup.add(body);
-                    playerGroup.add(head);
+                    const enemyGroup = new THREE.Group();
+                    enemyGroup.add(body);
+                    enemyGroup.add(head);
                     
-                    // Add name label
+                    // Add enemy label
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     canvas.width = 256;
                     canvas.height = 64;
                     context.font = '24px Arial';
-                    context.fillStyle = '#ffffff';
+                    context.fillStyle = '#ff0000';
                     context.textAlign = 'center';
-                    context.fillText(name, 128, 24);
+                    context.fillText("Enemy", 128, 24);
                     
                     const texture = new THREE.CanvasTexture(canvas);
                     const labelMaterial = new THREE.SpriteMaterial({
@@ -602,1385 +1166,858 @@
                     label.position.y = 2.5;
                     label.scale.set(5, 1.25, 1);
                     
-                    playerGroup.add(label);
+                    enemyGroup.add(label);
                     
-                    scene.add(playerGroup);
-                    playerMeshes[name] = playerGroup;
-                }
-                
-                // Update position
-                playerMeshes[name].position.set(player.x, player.y, player.z);
-                
-                // Update rotation (assume players look in direction of movement)
-                if (player.rotation !== undefined) {
-                    playerMeshes[name].rotation.y = player.rotation;
-                }
-            }
-        }
-        
-        function updatePlayerList() {
-            const playersList = document.getElementById('players');
-            playersList.innerHTML = '';
-            
-            for (const name in players) {
-                const li = document.createElement('li');
-                if (name === playerName) {
-                    li.textContent = name + ' (You)';
-                    li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
-                    li.style.fontWeight = 'bold';
-                } else {
-                    li.textContent = name;
-                    li.style.color = '#' + players[name].color.toString(16).padStart(6, '0');
-                }
-                playersList.appendChild(li);
-            }
-            
-            // Add yourself if not in list
-            if (!players[playerName]) {
-                const li = document.createElement('li');
-                li.textContent = playerName + ' (You)';
-                li.style.color = '#' + playerColor.toString(16).padStart(6, '0');
-                li.style.fontWeight = 'bold';
-                playersList.appendChild(li);
-            }
-        }
-        
-        // Animation loop
-        const clock = new THREE.Clock();
-        let lastUpdateTime = 0;
-        let lastCharacterUpdateTime = 0;
-        let lastLoggedTime = 0;
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            try {
-                const delta = clock.getDelta();
-                const elapsedTime = clock.getElapsedTime();
-                
-                // Get move speed from character (considers sprinting)
-                const moveSpeed = playerCharacter.getCurrentSpeed() * delta;
-                
-                // Log occasional debug info
-                if (Math.floor(elapsedTime) % 10 === 0 && Math.floor(elapsedTime) !== lastLoggedTime) {
-                    lastLoggedTime = Math.floor(elapsedTime);
-                    logDebug(`Running for ${lastLoggedTime}s, FPS: ${Math.round(1/delta)}`);
-                }
-                
-                // Update character stats
-                playerCharacter.update();
-                
-                // Update character UI every 0.5 seconds
-                if (elapsedTime - lastCharacterUpdateTime > 0.5) {
-                    updateCharacterStatsUI();
-                    lastCharacterUpdateTime = elapsedTime;
-                }
-                
-                // Update enemies
-                updateEnemies(delta);
-                
-                // Update ambient particles if they exist
-                if (typeof updateAmbientParticles === 'function') {
-                    updateAmbientParticles();
-                }
-                
-                // Update camera rotation from mouse
-                camera.rotation.order = 'YXZ';
-                camera.rotation.y = yaw;
-                camera.rotation.x = pitch;
-                
-                // Calculate movement direction
-                const direction = new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                
-                const sideDirection = new THREE.Vector3(-direction.z, 0, direction.x);
-                
-                // Apply movement
-                if (moveForward) camera.position.addScaledVector(direction, moveSpeed);
-                if (moveBackward) camera.position.addScaledVector(direction, -moveSpeed);
-                if (moveLeft) camera.position.addScaledVector(sideDirection, -moveSpeed);
-                if (moveRight) camera.position.addScaledVector(sideDirection, moveSpeed);
-                
-                // Handle jumping and gravity
-                if (isJumping) {
-                    camera.position.y += velocity;
-                    velocity -= gravity * delta * 10;
+                    // Position the enemy
+                    enemyGroup.position.set(x, 2, z);
+                    scene.add(enemyGroup);
                     
-                    // Check if we've landed
-                    if (camera.position.y <= 2) {
-                        camera.position.y = 2;
-                        velocity = 0;
-                        isJumping = false;
-                        playerCharacter.land(); // Reset jump count when landing
+                    // Create enemy data
+                    const enemy = {
+                        mesh: enemyGroup,
+                        health: 30,
+                        speed: 2,
+                        lastAttackTime: 0,
+                        isDead: false
+                    };
+                    
+                    enemies.push(enemy);
+                    logDebug("Enemy created at " + x.toFixed(1) + ", " + z.toFixed(1));
+                    return enemy;
+                } catch (error) {
+                    console.error("Error creating enemy:", error);
+                    logDebug("Enemy creation error: " + error.message);
+                }
+            }
+
+            // Spawn enemies periodically
+            function spawnEnemies() {
+                try {
+                    if (enemies.length < MAX_ENEMIES) {
+                        createEnemy();
                     }
-                } else {
-                    // Keep player on the ground when not jumping
-                    camera.position.y = playerCharacter.isDucking ? 1 : 2; // Lower camera when ducking
-                }
-                
-                // Update server with player position (limit frequency)
-                if (elapsedTime - lastUpdateTime > 0.1) { // Update every 100ms
-                    updatePlayerPosition();
-                    lastUpdateTime = elapsedTime;
-                }
-                
-                // Update player meshes
-                updatePlayerMeshes();
-                
-                // Check for loot collection
-                checkLootCollection();
-                
-                // Update skill cooldowns
-                updateSkillCooldowns();
-                
-                // Render scene
-                renderer.render(scene, camera);
-            } catch (error) {
-                console.error('Error in animation loop:', error);
-                logDebug(`Animation error: ${error.message}`);
-            }
-        }
-        
-        // Start animation
-        animate();
-        
-        // Resize handler
-        window.addEventListener('resize', function() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // Initialize player in the local players object
-        players[playerName] = {
-            x: camera.position.x,
-            y: camera.position.y,
-            z: camera.position.z,
-            color: playerColor
-        };
-        updatePlayerList();
-        
-        // Start server communication
-        connectWebSocket();
-        
-        // Handle page visibility changes
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible') {
-                // When tab becomes active again, reconnect if needed
-                if (!isConnected) {
-                    connectWebSocket();
+                    
+                    // Schedule next spawn
+                    setTimeout(spawnEnemies, ENEMY_SPAWN_INTERVAL);
+                } catch (error) {
+                    console.error("Error spawning enemies:", error);
+                    logDebug("Enemy spawn error: " + error.message);
                 }
             }
-        });
-        
-        // Clean up on page unload
-        window.addEventListener('beforeunload', function() {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.close();
-            }
-        });
 
-        // Chat functionality
-        const chatInput = document.getElementById('chatInput');
-        const chatMessages = document.getElementById('chatMessages');
-        const sendChatButton = document.getElementById('sendChat');
+            // Start spawning enemies
+            setTimeout(spawnEnemies, 5000); // Start after 5 seconds
 
-        // Send chat message when Send button is clicked
-        sendChatButton.addEventListener('click', sendChatMessage);
-
-        // Send chat message when Enter key is pressed in chat input
-        chatInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                sendChatMessage();
-            }
-        });
-
-        function sendChatMessage() {
-            const message = chatInput.value.trim();
-            if (message && socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    type: 'chat',
-                    id: sessionId,
-                    name: playerName,
-                    message: message
-                }));
-                chatInput.value = '';
-            }
-        }
-
-        // Function to show chat bubble above player
-        function showChatBubble(playerName, message) {
-            if (!playerMeshes[playerName]) return;
-            
-            // Remove existing chat bubble if any
-            const existingBubble = playerMeshes[playerName].getObjectByName('chatBubble');
-            if (existingBubble) {
-                playerMeshes[playerName].remove(existingBubble);
-            }
-            
-            // Create chat bubble
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 256;
-            canvas.height = 128;
-            
-            // Draw bubble background
-            context.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            context.strokeStyle = '#000000';
-            context.lineWidth = 2;
-            roundRect(context, 10, 10, canvas.width - 20, canvas.height - 20, 10, true, true);
-            
-            // Draw text
-            context.font = '16px Arial';
-            context.fillStyle = '#000000';
-            context.textAlign = 'center';
-            
-            // Word wrap the message
-            const words = message.split(' ');
-            let line = '';
-            let y = 40;
-            for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' ';
-                const metrics = context.measureText(testLine);
-                if (metrics.width > canvas.width - 40 && i > 0) {
-                    context.fillText(line, canvas.width / 2, y);
-                    line = words[i] + ' ';
-                    y += 20;
-                } else {
-                    line = testLine;
+            // Update enemies in animation loop
+            function updateEnemies(delta) {
+                const now = Date.now();
+                
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    
+                    if (enemy.isDead) {
+                        // Remove dead enemies
+                        scene.remove(enemy.mesh);
+                        enemies.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // Calculate distance to player
+                    const distanceToPlayer = Math.sqrt(
+                        Math.pow(enemy.mesh.position.x - camera.position.x, 2) + 
+                        Math.pow(enemy.mesh.position.z - camera.position.z, 2)
+                    );
+                    
+                    // Chase player if within radius
+                    if (distanceToPlayer < ENEMY_CHASE_RADIUS) {
+                        // Calculate direction to player
+                        const directionX = camera.position.x - enemy.mesh.position.x;
+                        const directionZ = camera.position.z - enemy.mesh.position.z;
+                        
+                        // Normalize direction
+                        const length = Math.sqrt(directionX * directionX + directionZ * directionZ);
+                        const normalizedX = directionX / length;
+                        const normalizedZ = directionZ / length;
+                        
+                        // Move enemy towards player
+                        enemy.mesh.position.x += normalizedX * enemy.speed * delta;
+                        enemy.mesh.position.z += normalizedZ * enemy.speed * delta;
+                        
+                        // Rotate enemy to face player
+                        enemy.mesh.rotation.y = Math.atan2(directionX, directionZ);
+                        
+                        // Attack player if close enough and cooldown is over
+                        if (distanceToPlayer < ENEMY_ATTACK_RADIUS && now - enemy.lastAttackTime > ENEMY_ATTACK_COOLDOWN) {
+                            // Deal damage to player
+                            const damageDealt = playerCharacter.takeDamage(ENEMY_ATTACK_DAMAGE);
+                            
+                            // Show damage indicator
+                            showDamageIndicator(damageDealt);
+                            
+                            // Update attack time
+                            enemy.lastAttackTime = now;
+                            
+                            // Update UI
+                            updateCharacterStatsUI();
+                        }
+                    }
                 }
             }
-            context.fillText(line, canvas.width / 2, y);
-            
-            // Create sprite with the canvas texture
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true
+
+            // Show damage indicator when player takes damage
+            function showDamageIndicator(amount) {
+                const damageDiv = document.createElement('div');
+                damageDiv.textContent = `-${amount}`;
+                damageDiv.style.position = 'absolute';
+                damageDiv.style.color = 'red';
+                damageDiv.style.fontSize = '24px';
+                damageDiv.style.fontWeight = 'bold';
+                damageDiv.style.textShadow = '2px 2px 0 #000';
+                damageDiv.style.top = '50%';
+                damageDiv.style.left = '50%';
+                damageDiv.style.transform = 'translate(-50%, -50%)';
+                damageDiv.style.pointerEvents = 'none';
+                document.body.appendChild(damageDiv);
+                
+                // Animate the damage indicator
+                let opacity = 1;
+                let posY = 0;
+                
+                const animateDamage = () => {
+                    opacity -= 0.02;
+                    posY -= 1;
+                    
+                    damageDiv.style.opacity = opacity;
+                    damageDiv.style.transform = `translate(-50%, calc(-50% + ${posY}px))`;
+                    
+                    if (opacity > 0) {
+                        requestAnimationFrame(animateDamage);
+                    } else {
+                        document.body.removeChild(damageDiv);
+                    }
+                };
+                
+                requestAnimationFrame(animateDamage);
+            }
+
+            // Add ability to attack enemies
+            let isAttacking = false;
+            document.addEventListener('mousedown', function(event) {
+                if (event.button === 0) { // Left mouse button
+                    isAttacking = true;
+                    attackPlayers();
+                }
             });
-            const sprite = new THREE.Sprite(material);
-            sprite.name = 'chatBubble';
-            sprite.position.y = 3.5;
-            sprite.scale.set(5, 2.5, 1);
-            
-            playerMeshes[playerName].add(sprite);
-            
-            // Remove bubble after 5 seconds
-            setTimeout(() => {
-                if (playerMeshes[playerName]) {
-                    const bubble = playerMeshes[playerName].getObjectByName('chatBubble');
-                    if (bubble) {
-                        playerMeshes[playerName].remove(bubble);
+
+            document.addEventListener('mouseup', function(event) {
+                if (event.button === 0) { // Left mouse button
+                    isAttacking = false;
+                }
+            });
+
+            // Create a weapon swing effect
+            function createSwordSlashEffect() {
+                if (!window.scene || !window.camera) return;
+
+                // Create a sword slash shape (a simple line for demonstration)
+                const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+                const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+                const slash = new THREE.Mesh(geometry, material);
+
+                // Position the slash in front of the player
+                const direction = new THREE.Vector3();
+                window.camera.getWorldDirection(direction);
+                const startPosition = window.camera.position.clone().add(direction.clone().multiplyScalar(1));
+                slash.position.copy(startPosition);
+                slash.rotation.x = Math.PI / 2; // Rotate to lay flat
+
+                window.scene.add(slash);
+
+                // Animate the slash
+                const animateSlash = () => {
+                    slash.scale.y -= 0.1; // Shrink the slash over time
+                    if (slash.scale.y <= 0) {
+                        window.scene.remove(slash); // Remove the slash when it's gone
+                        return;
+                    }
+                    requestAnimationFrame(animateSlash);
+                };
+
+                requestAnimationFrame(animateSlash);
+            }
+
+            // Create particle effect for hits
+            function createHitParticles(position, color = 0xff0000) {
+                const particleCount = 15;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(particleCount * 3);
+                const sizes = new Float32Array(particleCount);
+                
+                // Initialize particles at the hit position
+                for (let i = 0; i < particleCount; i++) {
+                    positions[i * 3] = position.x;
+                    positions[i * 3 + 1] = position.y;
+                    positions[i * 3 + 2] = position.z;
+                    sizes[i] = Math.random() * 0.5 + 0.1;
+                }
+                
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+                
+                // Create particle material
+                const material = new THREE.PointsMaterial({
+                    color: color,
+                    size: 0.1,
+                    transparent: true,
+                    opacity: 1.0,
+                    sizeAttenuation: true
+                });
+                
+                const particles = new THREE.Points(geometry, material);
+                scene.add(particles);
+                
+                // Particle velocities
+                const velocities = [];
+                for (let i = 0; i < particleCount; i++) {
+                    velocities.push({
+                        x: (Math.random() - 0.5) * 2,
+                        y: Math.random() * 2 + 1,
+                        z: (Math.random() - 0.5) * 2
+                    });
+                }
+                
+                // Animate particles
+                let frame = 0;
+                const animateParticles = () => {
+                    frame++;
+                    
+                    const positions = particles.geometry.attributes.position.array;
+                    
+                    for (let i = 0; i < particleCount; i++) {
+                        // Update positions based on velocity
+                        positions[i * 3] += velocities[i].x * 0.1;
+                        positions[i * 3 + 1] += velocities[i].y * 0.1;
+                        positions[i * 3 + 2] += velocities[i].z * 0.1;
+                        
+                        // Apply gravity
+                        velocities[i].y -= 0.05;
+                    }
+                    
+                    particles.geometry.attributes.position.needsUpdate = true;
+                    
+                    // Fade out
+                    particles.material.opacity -= 0.02;
+                    
+                    if (particles.material.opacity > 0) {
+                        requestAnimationFrame(animateParticles);
+                    } else {
+                        scene.remove(particles);
+                    }
+                };
+                
+                requestAnimationFrame(animateParticles);
+            }
+
+            // Add ambient environmental particles
+            function createAmbientParticles() {
+                const particleCount = 200;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(particleCount * 3);
+                
+                // Distribute particles in a large area around the scene
+                for (let i = 0; i < particleCount; i++) {
+                    positions[i * 3] = (Math.random() - 0.5) * 100;
+                    positions[i * 3 + 1] = Math.random() * 20 + 0.5;
+                    positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+                }
+                
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                
+                // Create particle material - glowing dust particles
+                const material = new THREE.PointsMaterial({
+                    color: 0xffffaa,
+                    size: 0.1,
+                    transparent: true,
+                    opacity: 0.6,
+                    sizeAttenuation: true
+                });
+                
+                const particles = new THREE.Points(geometry, material);
+                scene.add(particles);
+                
+                // Slowly animate ambient particles
+                function animateAmbientParticles() {
+                    const positions = particles.geometry.attributes.position.array;
+                    const time = Date.now() * 0.0001;
+                    
+                    for (let i = 0; i < particleCount; i++) {
+                        // Gentle wave motion
+                        positions[i * 3 + 1] += Math.sin(time + i * 0.1) * 0.01;
+                        
+                        // Slight horizontal drift
+                        positions[i * 3] += Math.sin(time * 0.5 + i) * 0.01;
+                        positions[i * 3 + 2] += Math.cos(time * 0.5 + i) * 0.01;
+                        
+                        // Reset particles that drift too far
+                        if (positions[i * 3 + 1] < 0.1) positions[i * 3 + 1] = 20;
+                    }
+                    
+                    particles.geometry.attributes.position.needsUpdate = true;
+                    
+                    // Pulse opacity
+                    particles.material.opacity = 0.3 + Math.sin(time * 2) * 0.1;
+                }
+                
+                // Add to animation loop
+                return animateAmbientParticles;
+            }
+
+            // Add fog to the scene
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
+
+            // Create a skybox
+            function createSkybox() {
+                const geometry = new THREE.BoxGeometry(500, 500, 500);
+                const materialArray = [];
+                
+                const textureLoader = new THREE.TextureLoader();
+                const skyboxTextures = [
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/px.jpg', // right
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nx.jpg', // left
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/py.jpg', // top
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/ny.jpg', // bottom
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/pz.jpg', // front
+                    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nz.jpg'  // back
+                ];
+                
+                // Create materials with skybox textures
+                for (let i = 0; i < 6; i++) {
+                    materialArray.push(new THREE.MeshBasicMaterial({
+                        map: textureLoader.load(skyboxTextures[i]),
+                        side: THREE.BackSide
+                    }));
+                }
+                
+                const skybox = new THREE.Mesh(geometry, materialArray);
+                scene.add(skybox);
+                
+                logDebug("Skybox added");
+            }
+
+            // Initialize ambient particles
+            const updateAmbientParticles = createAmbientParticles();
+            logDebug("Ambient particles added");
+
+            // Create skybox
+            createSkybox();
+
+            // Modify the attackEnemies function to add visual effects
+            function attackPlayers() {
+                if (!isAttacking) return;
+
+                // Create sword slash effect
+                createSwordSlashEffect();
+
+                // Find players in attack range
+                for (const name in players) {
+                    if (name === playerName) continue; // Skip self
+
+                    const player = players[name];
+                    const distanceToPlayer = Math.sqrt(
+                        Math.pow(player.x - camera.position.x, 2) +
+                        Math.pow(player.z - camera.position.z, 2)
+                    );
+
+                    if (distanceToPlayer < 2) { // Adjust attack range as needed
+                        // Deal damage to player
+                        player.health -= playerCharacter.strength / 2;
+
+                        // Show damage number above player
+                        if (typeof showEnemyDamageNumber === 'function') {
+                            showEnemyDamageNumber(player, playerCharacter.strength / 2);
+                        }
+
+                        // Check if player is dead
+                        if (player.health <= 0) {
+                            player.isDead = true;
+
+                            // Handle player death (e.g., respawn)
+                            handlePlayerDeath(player);
+                        }
                     }
                 }
-            }, 5000);
-        }
 
-        // Helper function to draw rounded rectangles
-        function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
-            ctx.beginPath();
-            ctx.moveTo(x + radius, y);
-            ctx.lineTo(x + width - radius, y);
-            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-            ctx.lineTo(x + width, y + height - radius);
-            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-            ctx.lineTo(x + radius, y + height);
-            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-            ctx.lineTo(x, y + radius);
-            ctx.quadraticCurveTo(x, y, x + radius, y);
-            ctx.closePath();
-            if (fill) {
-                ctx.fill();
+                // Continue attacking if button is still pressed
+                setTimeout(() => {
+                    if (isAttacking) {
+                        attackPlayers();
+                    }
+                }, 500); // Attack every 500ms
             }
-            if (stroke) {
-                ctx.stroke();
-            }
-        }
 
-        // Mobile controls
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const mobileControls = document.getElementById('mobileControls');
-        const lookControls = document.getElementById('lookControls');
-        const controlToggle = document.getElementById('controlToggle');
-
-        // Show mobile controls by default on mobile devices
-        if (isMobile) {
-            mobileControls.style.display = 'block';
-            lookControls.style.display = 'block';
-            
-            // Make info text smaller on mobile
-            document.getElementById('info').style.fontSize = '12px';
-        }
-
-        // Toggle mobile controls visibility
-        controlToggle.addEventListener('click', function() {
-            if (mobileControls.style.display === 'none') {
-                mobileControls.style.display = 'block';
-                lookControls.style.display = 'block';
-            } else {
-                mobileControls.style.display = 'none';
-                lookControls.style.display = 'none';
-            }
-        });
-
-        // Movement buttons
-        const mobileUp = document.getElementById('mobileUp');
-        const mobileDown = document.getElementById('mobileDown');
-        const mobileLeft = document.getElementById('mobileLeft');
-        const mobileRight = document.getElementById('mobileRight');
-        const mobileJump = document.getElementById('mobileJump');
-
-        // Look buttons
-        const lookUp = document.getElementById('lookUp');
-        const lookDown = document.getElementById('lookDown');
-        const lookLeft = document.getElementById('lookLeft');
-        const lookRight = document.getElementById('lookRight');
-
-        // Touch events for movement buttons
-        mobileUp.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            moveForward = true;
-        });
-        mobileUp.addEventListener('touchend', function() {
-            moveForward = false;
-        });
-
-        mobileDown.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            moveBackward = true;
-        });
-        mobileDown.addEventListener('touchend', function() {
-            moveBackward = false;
-        });
-
-        mobileLeft.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            moveLeft = true;
-        });
-        mobileLeft.addEventListener('touchend', function() {
-            moveLeft = false;
-        });
-
-        mobileRight.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            moveRight = true;
-        });
-        mobileRight.addEventListener('touchend', function() {
-            moveRight = false;
-        });
-
-        mobileJump.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            if (playerCharacter.jump()) {
-                velocity = 0.5;
-                isJumping = true;
-            }
-        });
-
-        // Look controls
-        const lookSensitivity = 0.05;
-
-        // Replace the existing look control event listeners with these improved versions
-        lookUp.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const lookInterval = setInterval(function() {
-                pitch -= lookSensitivity;
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-            }, 16); // ~60fps
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookUp.addEventListener('touchend', stopLooking);
-            lookUp.addEventListener('touchcancel', stopLooking);
-        });
-
-        lookDown.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const lookInterval = setInterval(function() {
-                pitch += lookSensitivity;
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookDown.addEventListener('touchend', stopLooking);
-            lookDown.addEventListener('touchcancel', stopLooking);
-        });
-
-        lookLeft.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const lookInterval = setInterval(function() {
-                yaw += lookSensitivity;
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookLeft.addEventListener('touchend', stopLooking);
-            lookLeft.addEventListener('touchcancel', stopLooking);
-        });
-
-        lookRight.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            const lookInterval = setInterval(function() {
-                yaw -= lookSensitivity;
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookRight.addEventListener('touchend', stopLooking);
-            lookRight.addEventListener('touchcancel', stopLooking);
-        });
-
-        // Also update the mouse controls for desktop testing
-        lookUp.addEventListener('mousedown', function() {
-            const lookInterval = setInterval(function() {
-                pitch -= lookSensitivity;
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookUp.addEventListener('mouseup', stopLooking);
-            lookUp.addEventListener('mouseleave', stopLooking);
-        });
-
-        lookDown.addEventListener('mousedown', function() {
-            const lookInterval = setInterval(function() {
-                pitch += lookSensitivity;
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookDown.addEventListener('mouseup', stopLooking);
-            lookDown.addEventListener('mouseleave', stopLooking);
-        });
-
-        lookLeft.addEventListener('mousedown', function() {
-            const lookInterval = setInterval(function() {
-                yaw += lookSensitivity;
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookLeft.addEventListener('mouseup', stopLooking);
-            lookLeft.addEventListener('mouseleave', stopLooking);
-        });
-
-        lookRight.addEventListener('mousedown', function() {
-            const lookInterval = setInterval(function() {
-                yaw -= lookSensitivity;
-            }, 16);
-            
-            function stopLooking() {
-                clearInterval(lookInterval);
-            }
-            
-            lookRight.addEventListener('mouseup', stopLooking);
-            lookRight.addEventListener('mouseleave', stopLooking);
-        });
-
-        // Update info text to include mobile controls info
-        if (isMobile) {
-            document.getElementById('info').innerHTML = 
-                'Use on-screen controls to move and look around<br>' +
-                '<div>Status: <span id="statusIndicator"></span> <span id="statusText">Connecting...</span></div>';
-        }
-
-        // Enemy system
-        const enemies = [];
-        const MAX_ENEMIES = 5;
-        const ENEMY_SPAWN_INTERVAL = 15000; // 15 seconds
-        const ENEMY_CHASE_RADIUS = 10;
-        const ENEMY_ATTACK_RADIUS = 2;
-        const ENEMY_ATTACK_DAMAGE = 5;
-        const ENEMY_ATTACK_COOLDOWN = 1000; // 1 second
-
-        function createEnemy() {
-            try {
-                // Random position away from player
-                let x, z;
-                do {
-                    x = Math.random() * 80 - 40; // -40 to 40
-                    z = Math.random() * 80 - 40; // -40 to 40
-                } while (Math.sqrt(Math.pow(x - camera.position.x, 2) + Math.pow(z - camera.position.z, 2)) < 15);
+            // Create death effect for enemies
+            function createDeathEffect(position) {
+                // Create explosion particles
+                createHitParticles(position, 0xffaa00);
                 
-                // Create enemy mesh
-                const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 8);
-                const headGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+                // Create larger explosion
+                const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xff6600,
+                    transparent: true,
+                    opacity: 0.7
+                });
                 
-                const material = new THREE.MeshStandardMaterial({ color: 0x880000 });
+                const explosion = new THREE.Mesh(geometry, material);
+                explosion.position.copy(position);
+                scene.add(explosion);
                 
-                const body = new THREE.Mesh(bodyGeometry, material);
-                const head = new THREE.Mesh(headGeometry, material);
+                // Animate explosion
+                let scale = 0.1;
+                const animateExplosion = () => {
+                    scale += 0.2;
+                    explosion.scale.set(scale, scale, scale);
+                    
+                    explosion.material.opacity -= 0.05;
+                    
+                    if (explosion.material.opacity > 0) {
+                        requestAnimationFrame(animateExplosion);
+                    } else {
+                        scene.remove(explosion);
+                    }
+                };
                 
-                head.position.y = 1.2;
+                requestAnimationFrame(animateExplosion);
                 
-                // Create a group to hold the body parts
-                const enemyGroup = new THREE.Group();
-                enemyGroup.add(body);
-                enemyGroup.add(head);
-                
-                // Add enemy label
+                // Drop loot with 70% chance
+                if (Math.random() < 0.7) {
+                    dropLoot(position);
+                }
+            }
+
+            // Show damage number above enemy
+            function showEnemyDamageNumber(enemy, amount) {
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                canvas.width = 256;
+                canvas.width = 128;
                 canvas.height = 64;
-                context.font = '24px Arial';
+                context.font = 'bold 24px Arial';
                 context.fillStyle = '#ff0000';
                 context.textAlign = 'center';
-                context.fillText("Enemy", 128, 24);
+                context.fillText(Math.floor(amount), 64, 32);
                 
                 const texture = new THREE.CanvasTexture(canvas);
-                const labelMaterial = new THREE.SpriteMaterial({
+                const material = new THREE.SpriteMaterial({
                     map: texture,
                     transparent: true
                 });
-                const label = new THREE.Sprite(labelMaterial);
-                label.position.y = 2.5;
-                label.scale.set(5, 1.25, 1);
+                const sprite = new THREE.Sprite(material);
+                sprite.position.y = 3;
+                sprite.scale.set(2, 1, 1);
                 
-                enemyGroup.add(label);
+                enemy.mesh.add(sprite);
                 
-                // Position the enemy
-                enemyGroup.position.set(x, 2, z);
-                scene.add(enemyGroup);
-                
-                // Create enemy data
-                const enemy = {
-                    mesh: enemyGroup,
-                    health: 30,
-                    speed: 2,
-                    lastAttackTime: 0,
-                    isDead: false
+                // Animate the damage number
+                let posY = 0;
+                const animateDamage = () => {
+                    posY += 0.05;
+                    sprite.position.y = 3 + posY;
+                    sprite.material.opacity -= 0.02;
+                    
+                    if (sprite.material.opacity > 0) {
+                        requestAnimationFrame(animateDamage);
+                    } else {
+                        enemy.mesh.remove(sprite);
+                    }
                 };
                 
-                enemies.push(enemy);
-                logDebug("Enemy created at " + x.toFixed(1) + ", " + z.toFixed(1));
-                return enemy;
-            } catch (error) {
-                console.error("Error creating enemy:", error);
-                logDebug("Enemy creation error: " + error.message);
+                requestAnimationFrame(animateDamage);
             }
-        }
 
-        // Spawn enemies periodically
-        function spawnEnemies() {
-            try {
-                if (enemies.length < MAX_ENEMIES) {
-                    createEnemy();
-                }
+            // Show XP gained message
+            function showXpGainedMessage(amount) {
+                const xpDiv = document.createElement('div');
+                xpDiv.textContent = `+${amount} XP`;
+                xpDiv.style.position = 'absolute';
+                xpDiv.style.color = '#00ff00';
+                xpDiv.style.fontSize = '20px';
+                xpDiv.style.fontWeight = 'bold';
+                xpDiv.style.textShadow = '1px 1px 0 #000';
+                xpDiv.style.bottom = '100px';
+                xpDiv.style.right = '20px';
+                xpDiv.style.pointerEvents = 'none';
+                document.body.appendChild(xpDiv);
                 
-                // Schedule next spawn
-                setTimeout(spawnEnemies, ENEMY_SPAWN_INTERVAL);
-            } catch (error) {
-                console.error("Error spawning enemies:", error);
-                logDebug("Enemy spawn error: " + error.message);
+                // Animate the XP message
+                let opacity = 1;
+                let posY = 0;
+                
+                const animateXp = () => {
+                    opacity -= 0.01;
+                    posY -= 0.5;
+                    
+                    xpDiv.style.opacity = opacity;
+                    xpDiv.style.transform = `translateY(${posY}px)`;
+                    
+                    if (opacity > 0) {
+                        requestAnimationFrame(animateXp);
+                    } else {
+                        document.body.removeChild(xpDiv);
+                    }
+                };
+                
+                requestAnimationFrame(animateXp);
             }
-        }
 
-        // Start spawning enemies
-        setTimeout(spawnEnemies, 5000); // Start after 5 seconds
-
-        // Update enemies in animation loop
-        function updateEnemies(delta) {
-            const now = Date.now();
-            
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                const enemy = enemies[i];
+            // Add an offline mode function to allow playing without a server
+            function enableOfflineMode() {
+                console.log('Enabling offline mode');
+                logDebug('Offline mode enabled');
+                isConnected = false;
                 
-                if (enemy.isDead) {
-                    // Remove dead enemies
-                    scene.remove(enemy.mesh);
-                    enemies.splice(i, 1);
-                    continue;
-                }
+                // Create a fake session ID
+                sessionId = 'offline-' + Math.random().toString(36).substring(2, 15);
                 
-                // Calculate distance to player
-                const distanceToPlayer = Math.sqrt(
-                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) + 
-                    Math.pow(enemy.mesh.position.z - camera.position.z, 2)
-                );
-                
-                // Chase player if within radius
-                if (distanceToPlayer < ENEMY_CHASE_RADIUS) {
-                    // Calculate direction to player
-                    const directionX = camera.position.x - enemy.mesh.position.x;
-                    const directionZ = camera.position.z - enemy.mesh.position.z;
-                    
-                    // Normalize direction
-                    const length = Math.sqrt(directionX * directionX + directionZ * directionZ);
-                    const normalizedX = directionX / length;
-                    const normalizedZ = directionZ / length;
-                    
-                    // Move enemy towards player
-                    enemy.mesh.position.x += normalizedX * enemy.speed * delta;
-                    enemy.mesh.position.z += normalizedZ * enemy.speed * delta;
-                    
-                    // Rotate enemy to face player
-                    enemy.mesh.rotation.y = Math.atan2(directionX, directionZ);
-                    
-                    // Attack player if close enough and cooldown is over
-                    if (distanceToPlayer < ENEMY_ATTACK_RADIUS && now - enemy.lastAttackTime > ENEMY_ATTACK_COOLDOWN) {
-                        // Deal damage to player
-                        const damageDealt = playerCharacter.takeDamage(ENEMY_ATTACK_DAMAGE);
-                        
-                        // Show damage indicator
-                        showDamageIndicator(damageDealt);
-                        
-                        // Update attack time
-                        enemy.lastAttackTime = now;
-                        
-                        // Update UI
-                        updateCharacterStatsUI();
+                // Clear any existing players
+                for (const name in playerMeshes) {
+                    if (name !== playerName) {
+                        scene.remove(playerMeshes[name]);
+                        delete playerMeshes[name];
                     }
                 }
-            }
-        }
-
-        // Show damage indicator when player takes damage
-        function showDamageIndicator(amount) {
-            const damageDiv = document.createElement('div');
-            damageDiv.textContent = `-${amount}`;
-            damageDiv.style.position = 'absolute';
-            damageDiv.style.color = 'red';
-            damageDiv.style.fontSize = '24px';
-            damageDiv.style.fontWeight = 'bold';
-            damageDiv.style.textShadow = '2px 2px 0 #000';
-            damageDiv.style.top = '50%';
-            damageDiv.style.left = '50%';
-            damageDiv.style.transform = 'translate(-50%, -50%)';
-            damageDiv.style.pointerEvents = 'none';
-            document.body.appendChild(damageDiv);
-            
-            // Animate the damage indicator
-            let opacity = 1;
-            let posY = 0;
-            
-            const animateDamage = () => {
-                opacity -= 0.02;
-                posY -= 1;
-                
-                damageDiv.style.opacity = opacity;
-                damageDiv.style.transform = `translate(-50%, calc(-50% + ${posY}px))`;
-                
-                if (opacity > 0) {
-                    requestAnimationFrame(animateDamage);
-                } else {
-                    document.body.removeChild(damageDiv);
-                }
-            };
-            
-            requestAnimationFrame(animateDamage);
-        }
-
-        // Add ability to attack enemies
-        let isAttacking = false;
-        document.addEventListener('mousedown', function(event) {
-            if (event.button === 0) { // Left mouse button
-                isAttacking = true;
-                attackEnemies();
-            }
-        });
-
-        document.addEventListener('mouseup', function(event) {
-            if (event.button === 0) { // Left mouse button
-                isAttacking = false;
-            }
-        });
-
-        // Create a weapon swing effect
-        function createSwordSlashEffect() {
-            if (!window.scene || !window.camera) return;
-
-            // Create a sword slash shape (a simple line for demonstration)
-            const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
-            const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-            const slash = new THREE.Mesh(geometry, material);
-
-            // Position the slash in front of the player
-            const direction = new THREE.Vector3();
-            window.camera.getWorldDirection(direction);
-            const startPosition = window.camera.position.clone().add(direction.clone().multiplyScalar(1));
-            slash.position.copy(startPosition);
-            slash.rotation.x = Math.PI / 2; // Rotate to lay flat
-
-            window.scene.add(slash);
-
-            // Animate the slash
-            const animateSlash = () => {
-                slash.scale.y -= 0.1; // Shrink the slash over time
-                if (slash.scale.y <= 0) {
-                    window.scene.remove(slash); // Remove the slash when it's gone
-                    return;
-                }
-                requestAnimationFrame(animateSlash);
-            };
-
-            requestAnimationFrame(animateSlash);
-        }
-
-        // Create particle effect for hits
-        function createHitParticles(position, color = 0xff0000) {
-            const particleCount = 15;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            const sizes = new Float32Array(particleCount);
-            
-            // Initialize particles at the hit position
-            for (let i = 0; i < particleCount; i++) {
-                positions[i * 3] = position.x;
-                positions[i * 3 + 1] = position.y;
-                positions[i * 3 + 2] = position.z;
-                sizes[i] = Math.random() * 0.5 + 0.1;
-            }
-            
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-            
-            // Create particle material
-            const material = new THREE.PointsMaterial({
-                color: color,
-                size: 0.1,
-                transparent: true,
-                opacity: 1.0,
-                sizeAttenuation: true
-            });
-            
-            const particles = new THREE.Points(geometry, material);
-            scene.add(particles);
-            
-            // Particle velocities
-            const velocities = [];
-            for (let i = 0; i < particleCount; i++) {
-                velocities.push({
-                    x: (Math.random() - 0.5) * 2,
-                    y: Math.random() * 2 + 1,
-                    z: (Math.random() - 0.5) * 2
-                });
-            }
-            
-            // Animate particles
-            let frame = 0;
-            const animateParticles = () => {
-                frame++;
-                
-                const positions = particles.geometry.attributes.position.array;
-                
-                for (let i = 0; i < particleCount; i++) {
-                    // Update positions based on velocity
-                    positions[i * 3] += velocities[i].x * 0.1;
-                    positions[i * 3 + 1] += velocities[i].y * 0.1;
-                    positions[i * 3 + 2] += velocities[i].z * 0.1;
-                    
-                    // Apply gravity
-                    velocities[i].y -= 0.05;
-                }
-                
-                particles.geometry.attributes.position.needsUpdate = true;
-                
-                // Fade out
-                particles.material.opacity -= 0.02;
-                
-                if (particles.material.opacity > 0) {
-                    requestAnimationFrame(animateParticles);
-                } else {
-                    scene.remove(particles);
-                }
-            };
-            
-            requestAnimationFrame(animateParticles);
-        }
-
-        // Add ambient environmental particles
-        function createAmbientParticles() {
-            const particleCount = 200;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            
-            // Distribute particles in a large area around the scene
-            for (let i = 0; i < particleCount; i++) {
-                positions[i * 3] = (Math.random() - 0.5) * 100;
-                positions[i * 3 + 1] = Math.random() * 20 + 0.5;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
-            }
-            
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            
-            // Create particle material - glowing dust particles
-            const material = new THREE.PointsMaterial({
-                color: 0xffffaa,
-                size: 0.1,
-                transparent: true,
-                opacity: 0.6,
-                sizeAttenuation: true
-            });
-            
-            const particles = new THREE.Points(geometry, material);
-            scene.add(particles);
-            
-            // Slowly animate ambient particles
-            function animateAmbientParticles() {
-                const positions = particles.geometry.attributes.position.array;
-                const time = Date.now() * 0.0001;
-                
-                for (let i = 0; i < particleCount; i++) {
-                    // Gentle wave motion
-                    positions[i * 3 + 1] += Math.sin(time + i * 0.1) * 0.01;
-                    
-                    // Slight horizontal drift
-                    positions[i * 3] += Math.sin(time * 0.5 + i) * 0.01;
-                    positions[i * 3 + 2] += Math.cos(time * 0.5 + i) * 0.01;
-                    
-                    // Reset particles that drift too far
-                    if (positions[i * 3 + 1] < 0.1) positions[i * 3 + 1] = 20;
-                }
-                
-                particles.geometry.attributes.position.needsUpdate = true;
-                
-                // Pulse opacity
-                particles.material.opacity = 0.3 + Math.sin(time * 2) * 0.1;
-            }
-            
-            // Add to animation loop
-            return animateAmbientParticles;
-        }
-
-        // Add fog to the scene
-        scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
-
-        // Create a skybox
-        function createSkybox() {
-            const geometry = new THREE.BoxGeometry(500, 500, 500);
-            const materialArray = [];
-            
-            const textureLoader = new THREE.TextureLoader();
-            const skyboxTextures = [
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/px.jpg', // right
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nx.jpg', // left
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/py.jpg', // top
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/ny.jpg', // bottom
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/pz.jpg', // front
-                'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/cube/skybox/nz.jpg'  // back
-            ];
-            
-            // Create materials with skybox textures
-            for (let i = 0; i < 6; i++) {
-                materialArray.push(new THREE.MeshBasicMaterial({
-                    map: textureLoader.load(skyboxTextures[i]),
-                    side: THREE.BackSide
-                }));
-            }
-            
-            const skybox = new THREE.Mesh(geometry, materialArray);
-            scene.add(skybox);
-            
-            logDebug("Skybox added");
-        }
-
-        // Initialize ambient particles
-        const updateAmbientParticles = createAmbientParticles();
-        logDebug("Ambient particles added");
-
-        // Create skybox
-        createSkybox();
-
-        // Modify the attackEnemies function to add visual effects
-        function attackEnemies() {
-            if (!isAttacking) return;
-
-            // Create sword slash effect
-            createSwordSlashEffect();
-
-            // Find enemies in attack range
-            for (const enemy of enemies) {
-                const distanceToEnemy = Math.sqrt(
-                    Math.pow(enemy.mesh.position.x - camera.position.x, 2) +
-                    Math.pow(enemy.mesh.position.z - camera.position.z, 2)
-                );
-
-                if (distanceToEnemy < 2) { // Adjust attack range as needed
-                    // Deal damage to enemy
-                    enemy.health -= playerCharacter.strength / 2;
-
-                    // Show damage number above enemy
-                    if (typeof showEnemyDamageNumber === 'function') {
-                        showEnemyDamageNumber(enemy, playerCharacter.strength / 2);
-                    }
-
-                    // Check if enemy is dead
-                    if (enemy.health <= 0) {
-                        enemy.isDead = true;
-
-                        // Give player experience
-                        const xpGained = 20;
-                        playerCharacter.gainExperience(xpGained);
-
-                        // Show XP gained
-                        if (typeof showXpGainedMessage === 'function') {
-                            showXpGainedMessage(xpGained);
-                        }
-
-                        // Create death effect
-                        if (typeof createDeathEffect === 'function') {
-                            createDeathEffect(enemy.mesh.position);
-                        }
-                    }
-                }
-            }
-
-            // Continue attacking if button is still pressed
-            setTimeout(() => {
-                if (isAttacking) {
-                    attackEnemies();
-                }
-            }, 500); // Attack every 500ms
-        }
-
-        // Create death effect for enemies
-        function createDeathEffect(position) {
-            // Create explosion particles
-            createHitParticles(position, 0xffaa00);
-            
-            // Create larger explosion
-            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0xff6600,
-                transparent: true,
-                opacity: 0.7
-            });
-            
-            const explosion = new THREE.Mesh(geometry, material);
-            explosion.position.copy(position);
-            scene.add(explosion);
-            
-            // Animate explosion
-            let scale = 0.1;
-            const animateExplosion = () => {
-                scale += 0.2;
-                explosion.scale.set(scale, scale, scale);
-                
-                explosion.material.opacity -= 0.05;
-                
-                if (explosion.material.opacity > 0) {
-                    requestAnimationFrame(animateExplosion);
-                } else {
-                    scene.remove(explosion);
-                }
-            };
-            
-            requestAnimationFrame(animateExplosion);
-            
-            // Drop loot with 70% chance
-            if (Math.random() < 0.7) {
-                dropLoot(position);
-            }
-        }
-
-        // Show damage number above enemy
-        function showEnemyDamageNumber(enemy, amount) {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 128;
-            canvas.height = 64;
-            context.font = 'bold 24px Arial';
-            context.fillStyle = '#ff0000';
-            context.textAlign = 'center';
-            context.fillText(Math.floor(amount), 64, 32);
-            
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true
-            });
-            const sprite = new THREE.Sprite(material);
-            sprite.position.y = 3;
-            sprite.scale.set(2, 1, 1);
-            
-            enemy.mesh.add(sprite);
-            
-            // Animate the damage number
-            let posY = 0;
-            const animateDamage = () => {
-                posY += 0.05;
-                sprite.position.y = 3 + posY;
-                sprite.material.opacity -= 0.02;
-                
-                if (sprite.material.opacity > 0) {
-                    requestAnimationFrame(animateDamage);
-                } else {
-                    enemy.mesh.remove(sprite);
-                }
-            };
-            
-            requestAnimationFrame(animateDamage);
-        }
-
-        // Show XP gained message
-        function showXpGainedMessage(amount) {
-            const xpDiv = document.createElement('div');
-            xpDiv.textContent = `+${amount} XP`;
-            xpDiv.style.position = 'absolute';
-            xpDiv.style.color = '#00ff00';
-            xpDiv.style.fontSize = '20px';
-            xpDiv.style.fontWeight = 'bold';
-            xpDiv.style.textShadow = '1px 1px 0 #000';
-            xpDiv.style.bottom = '100px';
-            xpDiv.style.right = '20px';
-            xpDiv.style.pointerEvents = 'none';
-            document.body.appendChild(xpDiv);
-            
-            // Animate the XP message
-            let opacity = 1;
-            let posY = 0;
-            
-            const animateXp = () => {
-                opacity -= 0.01;
-                posY -= 0.5;
-                
-                xpDiv.style.opacity = opacity;
-                xpDiv.style.transform = `translateY(${posY}px)`;
-                
-                if (opacity > 0) {
-                    requestAnimationFrame(animateXp);
-                } else {
-                    document.body.removeChild(xpDiv);
-                }
-            };
-            
-            requestAnimationFrame(animateXp);
-        }
-
-        // Add an offline mode function to allow playing without a server
-        function enableOfflineMode() {
-            console.log('Enabling offline mode');
-            logDebug('Offline mode enabled');
-            isConnected = false;
-            
-            // Create a fake session ID
-            sessionId = 'offline-' + Math.random().toString(36).substring(2, 15);
-            
-            // Clear any existing players
-            for (const name in playerMeshes) {
-                if (name !== playerName) {
-                    scene.remove(playerMeshes[name]);
-                    delete playerMeshes[name];
-                }
-            }
-            players = {};
-            players[playerName] = {
-                x: camera.position.x,
-                y: camera.position.y,
-                z: camera.position.z,
-                color: playerColor,
-                rotation: yaw
-            };
-            
-            updatePlayerList();
-            
-            // Override server communication functions to work offline
-            updatePlayerPosition = function() {
-                // Just update local player data
+                players = {};
                 players[playerName] = {
                     x: camera.position.x,
                     y: camera.position.y,
                     z: camera.position.z,
                     color: playerColor,
-                    rotation: yaw
+                    rotation: yaw,
+                    health: 100,
+                    isDead: false
                 };
-            };
-            
-            // Override chat to work locally
-            sendChatMessage = function() {
-                const message = chatInput.value.trim();
-                if (message) {
-                    const messageElement = document.createElement('div');
-                    messageElement.innerHTML = `<strong>${playerName}:</strong> ${message}`;
-                    chatMessages.appendChild(messageElement);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                    chatInput.value = '';
-                }
-            };
-            
-            // Make sure enemies are initialized
+                
+                updatePlayerList();
+                
+                // Override server communication functions to work offline
+                updatePlayerPosition = function() {
+                    // Just update local player data
+                    players[playerName] = {
+                        x: camera.position.x,
+                        y: camera.position.y,
+                        z: camera.position.z,
+                        color: playerColor,
+                        rotation: yaw,
+                        health: 100,
+                        isDead: false
+                    };
+                };
+                
+                // Override chat to work locally
+                sendChatMessage = function() {
+                    const message = chatInput.value.trim();
+                    if (message) {
+                        const messageElement = document.createElement('div');
+                        messageElement.innerHTML = `<strong>${playerName}:</strong> ${message}`;
+                        chatMessages.appendChild(messageElement);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        chatInput.value = '';
+                    }
+                };
+                
+                // Make sure enemies are initialized
+                initEnemySystem();
+                
+                // Update status indicator
+                statusIndicator.style.backgroundColor = "orange";
+                statusText.textContent = "Offline Mode";
+            }
+
+            // Modify the enemy system to ensure it works even without a server
+            // Add this right after the enemy system initialization
+            let enemiesInitialized = false;
+
+            function initEnemySystem() {
+                if (enemiesInitialized) return;
+                enemiesInitialized = true;
+                
+                console.log('Initializing enemy system');
+                
+                // Start spawning enemies
+                setTimeout(spawnEnemies, 5000); // Start after 5 seconds
+            }
+
+            // Call this function after scene setup is complete
             initEnemySystem();
-            
-            // Update status indicator
-            statusIndicator.style.backgroundColor = "orange";
-            statusText.textContent = "Offline Mode";
-        }
 
-        // Modify the enemy system to ensure it works even without a server
-        // Add this right after the enemy system initialization
-        let enemiesInitialized = false;
+            // Add this after the character stats UI creation
+            const debugPanel = document.createElement('div');
+            debugPanel.id = 'debugPanel';
+            debugPanel.style.position = 'absolute';
+            debugPanel.style.right = '10px';
+            debugPanel.style.bottom = '10px';
+            debugPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            debugPanel.style.color = 'white';
+            debugPanel.style.padding = '10px';
+            debugPanel.style.borderRadius = '5px';
+            debugPanel.style.fontSize = '12px';
+            debugPanel.style.maxWidth = '300px';
+            debugPanel.style.maxHeight = '150px';
+            debugPanel.style.overflow = 'auto';
+            debugPanel.style.zIndex = '1000';
+            document.body.appendChild(debugPanel);
 
-        function initEnemySystem() {
-            if (enemiesInitialized) return;
-            enemiesInitialized = true;
-            
-            console.log('Initializing enemy system');
-            
-            // Start spawning enemies
-            setTimeout(spawnEnemies, 5000); // Start after 5 seconds
-        }
-
-        // Call this function after scene setup is complete
-        initEnemySystem();
-
-        // Add this after the character stats UI creation
-        const debugPanel = document.createElement('div');
-        debugPanel.id = 'debugPanel';
-        debugPanel.style.position = 'absolute';
-        debugPanel.style.right = '10px';
-        debugPanel.style.bottom = '10px';
-        debugPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
-        debugPanel.style.color = 'white';
-        debugPanel.style.padding = '10px';
-        debugPanel.style.borderRadius = '5px';
-        debugPanel.style.fontSize = '12px';
-        debugPanel.style.maxWidth = '300px';
-        debugPanel.style.maxHeight = '150px';
-        debugPanel.style.overflow = 'auto';
-        debugPanel.style.zIndex = '1000';
-        document.body.appendChild(debugPanel);
-
-        function logDebug(message) {
-            // Check if debugPanel exists yet
-            if (!window.debugPanel) {
+            function logDebug(message) {
+                // Check if debugPanel exists yet
+                if (!window.debugPanel) {
+                    console.log(message);
+                    return;
+                }
+                
+                const line = document.createElement('div');
+                line.textContent = message;
+                debugPanel.appendChild(line);
+                
+                // Keep only the last 10 messages
+                while (debugPanel.children.length > 10) {
+                    debugPanel.removeChild(debugPanel.firstChild);
+                }
+                
+                debugPanel.scrollTop = debugPanel.scrollHeight;
                 console.log(message);
-                return;
             }
-            
-            const line = document.createElement('div');
-            line.textContent = message;
-            debugPanel.appendChild(line);
-            
-            // Keep only the last 10 messages
-            while (debugPanel.children.length > 10) {
-                debugPanel.removeChild(debugPanel.firstChild);
-            }
-            
-            debugPanel.scrollTop = debugPanel.scrollHeight;
-            console.log(message);
-        }
 
-        // Log some initial debug info
-        logDebug(`Screen: ${window.innerWidth}x${window.innerHeight}`);
-        logDebug(`WebGL: ${!!renderer}`);
-        logDebug(`Protocol: ${window.location.protocol}`);
+            // Log some initial debug info
+            logDebug(`Screen: ${window.innerWidth}x${window.innerHeight}`);
+            logDebug(`WebGL: ${!!renderer}`);
+            logDebug(`Protocol: ${window.location.protocol}`);
 
-        // Add this function after the connectWebSocket function
-        function checkServerStatus() {
-            fetch('/').then(response => {
-                if (response.ok) {
-                    logDebug("Server is reachable");
-                } else {
-                    logDebug(`Server returned status: ${response.status}`);
+            // Add this function after the connectWebSocket function
+            function checkServerStatus() {
+                fetch('/').then(response => {
+                    if (response.ok) {
+                        logDebug("Server is reachable");
+                    } else {
+                        logDebug(`Server returned status: ${response.status}`);
+                        enableOfflineMode();
+                    }
+                }).catch(error => {
+                    logDebug(`Server check failed: ${error.message}`);
                     enableOfflineMode();
-                }
-            }).catch(error => {
-                logDebug(`Server check failed: ${error.message}`);
-                enableOfflineMode();
-            });
-        }
-
-        // Call this function early in the initialization
-        checkServerStatus();
-
-        // Add this function after scene setup
-        function testSceneRendering() {
-            // Add a simple test object to verify rendering
-            const testGeometry = new THREE.BoxGeometry(2, 2, 2);
-            const testMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0xff0000,
-                emissive: 0x440000
-            });
-            const testCube = new THREE.Mesh(testGeometry, testMaterial);
-            testCube.position.set(0, 3, -5);
-            scene.add(testCube);
-            
-            logDebug("Test cube added to scene");
-            
-            // Force a render
-            renderer.render(scene, camera);
-        }
-
-        // Call this function after scene setup
-        testSceneRendering();
-
-        // Add inventory initialization after character initialization
-        let playerInventory = null;
-        
-        // Initialize inventory after character is loaded
-        function initInventory() {
-            playerInventory = new Inventory();
-            
-            // Add some starter items
-            playerInventory.addItem(Item.createApple());
-            
-            logDebug("Inventory system initialized");
-        }
-        
-        // Call initInventory after character is loaded
-        initInventory();
-
-        // Add loot dropping functionality
-        function dropLoot(position) {
-            // Create a random item
-            const lootItem = Item.createRandomLoot();
-            
-            // Create loot mesh
-            const lootGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-            const lootMaterial = new THREE.MeshStandardMaterial({
-                color: lootItem.color,
-                emissive: lootItem.color,
-                emissiveIntensity: 0.3
-            });
-            
-            const lootMesh = new THREE.Mesh(lootGeometry, lootMaterial);
-            lootMesh.position.copy(position);
-            lootMesh.position.y = 0.5; // Position slightly above ground
-            lootMesh.userData.item = lootItem;
-            lootMesh.userData.isLoot = true;
-            
-            // Add floating animation
-            lootMesh.userData.floatOffset = Math.random() * Math.PI * 2;
-            lootMesh.userData.rotationSpeed = 0.02 + Math.random() * 0.03;
-            
-            scene.add(lootMesh);
-            
-            // Add to a global array to track loot items
-            if (!window.lootItems) {
-                window.lootItems = [];
+                });
             }
-            window.lootItems.push(lootMesh);
-            
-            logDebug(`Dropped ${lootItem.name} at ${position.x.toFixed(1)}, ${position.z.toFixed(1)}`);
-        }
-        
-        // Add loot collection to the animation loop
-        function checkLootCollection() {
-            if (!window.lootItems) return;
-            
-            const playerPosition = new THREE.Vector3(camera.position.x, 0, camera.position.z);
-            const PICKUP_DISTANCE = 2;
-            
-            for (let i = window.lootItems.length - 1; i >= 0; i--) {
-                const loot = window.lootItems[i];
+
+            // Call this function early in the initialization
+            checkServerStatus();
+
+            // Add this function after scene setup
+            function testSceneRendering() {
+                // Add a simple test object to verify rendering
+                const testGeometry = new THREE.BoxGeometry(2, 2, 2);
+                const testMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xff0000,
+                    emissive: 0x440000
+                });
+                const testCube = new THREE.Mesh(testGeometry, testMaterial);
+                testCube.position.set(0, 3, -5);
+                scene.add(testCube);
                 
-                // Skip if loot is no longer in the scene
-                if (!loot.parent) {
-                    window.lootItems.splice(i, 1);
-                    continue;
+                logDebug("Test cube added to scene");
+                
+                // Force a render
+                renderer.render(scene, camera);
+            }
+
+            // Call this function after scene setup
+            testSceneRendering();
+
+            // Add inventory initialization after character initialization
+            let playerInventory = null;
+            
+            // Initialize inventory after character is loaded
+            function initInventory() {
+                playerInventory = new Inventory();
+                
+                // Add some starter items
+                playerInventory.addItem(Item.createApple());
+                
+                logDebug("Inventory system initialized");
+            }
+            
+            // Call initInventory after character is loaded
+            initInventory();
+
+            // Add loot dropping functionality
+            function dropLoot(position) {
+                // Create a random item
+                const lootItem = Item.createRandomLoot();
+                
+                // Create loot mesh
+                const lootGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const lootMaterial = new THREE.MeshStandardMaterial({
+                    color: lootItem.color,
+                    emissive: lootItem.color,
+                    emissiveIntensity: 0.3
+                });
+                
+                const lootMesh = new THREE.Mesh(lootGeometry, lootMaterial);
+                lootMesh.position.copy(position);
+                lootMesh.position.y = 0.5; // Position slightly above ground
+                lootMesh.userData.item = lootItem;
+                lootMesh.userData.isLoot = true;
+                
+                // Add floating animation
+                lootMesh.userData.floatOffset = Math.random() * Math.PI * 2;
+                lootMesh.userData.rotationSpeed = 0.02 + Math.random() * 0.03;
+                
+                scene.add(lootMesh);
+                
+                // Add to a global array to track loot items
+                if (!window.lootItems) {
+                    window.lootItems = [];
                 }
+                window.lootItems.push(lootMesh);
                 
-                // Animate floating and rotation
-                loot.position.y = 0.5 + Math.sin(Date.now() * 0.002 + loot.userData.floatOffset) * 0.1;
-                loot.rotation.y += loot.userData.rotationSpeed;
+                logDebug(`Dropped ${lootItem.name} at ${position.x.toFixed(1)}, ${position.z.toFixed(1)}`);
+            }
+            
+            // Add loot collection to the animation loop
+            function checkLootCollection() {
+                if (!window.lootItems) return;
                 
-                // Check distance to player
-                const lootPosition = new THREE.Vector3(loot.position.x, 0, loot.position.z);
-                const distance = playerPosition.distanceTo(lootPosition);
+                const playerPosition = new THREE.Vector3(camera.position.x, 0, camera.position.z);
+                const PICKUP_DISTANCE = 2;
                 
-                if (distance < PICKUP_DISTANCE) {
-                    // Collect the item
-                    const item = loot.userData.item;
-                    const added = playerInventory.addItem(item);
+                for (let i = window.lootItems.length - 1; i >= 0; i--) {
+                    const loot = window.lootItems[i];
                     
-                    if (added) {
-                        // Remove from scene
-                        scene.remove(loot);
+                    // Skip if loot is no longer in the scene
+                    if (!loot.parent) {
                         window.lootItems.splice(i, 1);
-                        
-                        // Show pickup notification
-                        showItemPickupNotification(item.name);
-                        
-                        logDebug(`Picked up ${item.name}`);
+                        continue;
                     }
-                }
-            }
-        }
-        
-        // Function to show item pickup notification
-        function showItemPickupNotification(itemName) {
-            const notification = document.getElementById('itemPickupNotification');
-            notification.textContent = `Picked up: ${itemName}`;
-            notification.style.opacity = 1;
-            
-            // Hide after 2 seconds
-            setTimeout(() => {
-                notification.style.opacity = 0;
-            }, 2000);
-        }
-
-        // Add keyboard event for inventory toggle
-        document.addEventListener('keydown', function(event) {
-            if (event.code === 'KeyI') {
-                // This will be handled by the inventory class
-            }
-        });
-
-        // Add this after initializing the inventory
-        // Initialize skill system
-        let skillSystem = null;
-
-        function initSkillSystem() {
-            if (!window.SkillSystem) {
-                console.error("SkillSystem class not found. Make sure skills.js is loaded.");
-                return;
-            }
-            
-            skillSystem = new window.SkillSystem(playerCharacter);
-            logDebug("Skill system initialized");
-            
-            // Give player some skill points based on level
-            skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
-        }
-
-        // Call initSkillSystem after character is loaded
-        setTimeout(initSkillSystem, 1000); // Ensure all scripts are loaded
-
-        // Add this to the animation loop to update skill cooldowns
-        function updateSkillCooldowns() {
-            if (skillSystem) {
-                // This will be handled internally by the skill system
-                // Just ensure the UI is updated
-                const now = Date.now();
-                for (const id in skillSystem.cooldowns) {
-                    const elapsed = now - skillSystem.cooldowns[id].startTime;
-                    if (elapsed >= skillSystem.cooldowns[id].duration) {
-                        // Remove expired cooldowns
-                        delete skillSystem.cooldowns[id];
-                        // Update UI
-                        const cooldownElement = document.querySelector(`.skill-cooldown[data-skill="${id}"]`);
-                        if (cooldownElement) {
-                            cooldownElement.style.display = 'none';
-                        }
-                        const progressElement = document.querySelector(`.skill-progress[data-skill="${id}"]`);
-                        if (progressElement) {
-                            progressElement.style.height = '0%';
+                    
+                    // Animate floating and rotation
+                    loot.position.y = 0.5 + Math.sin(Date.now() * 0.002 + loot.userData.floatOffset) * 0.1;
+                    loot.rotation.y += loot.userData.rotationSpeed;
+                    
+                    // Check distance to player
+                    const lootPosition = new THREE.Vector3(loot.position.x, 0, loot.position.z);
+                    const distance = playerPosition.distanceTo(lootPosition);
+                    
+                    if (distance < PICKUP_DISTANCE) {
+                        // Collect the item
+                        const item = loot.userData.item;
+                        const added = playerInventory.addItem(item);
+                        
+                        if (added) {
+                            // Remove from scene
+                            scene.remove(loot);
+                            window.lootItems.splice(i, 1);
+                            
+                            // Show pickup notification
+                            showItemPickupNotification(item.name);
+                            
+                            logDebug(`Picked up ${item.name}`);
                         }
                     }
                 }
             }
-        }
+            
+            // Function to show item pickup notification
+            function showItemPickupNotification(itemName) {
+                const notification = document.getElementById('itemPickupNotification');
+                notification.textContent = `Picked up: ${itemName}`;
+                notification.style.opacity = 1;
+                
+                // Hide after 2 seconds
+                setTimeout(() => {
+                    notification.style.opacity = 0;
+                }, 2000);
+            }
 
-        // Call this in the animate function
-        updateSkillCooldowns();
-    </script>
-</body>
-</html>
+            // Add keyboard event for inventory toggle
+            document.addEventListener('keydown', function(event) {
+                if (event.code === 'KeyI') {
+                    // This will be handled by the inventory class
+                }
+            });
+
+            // Add this after initializing the inventory
+            // Initialize skill system
+            let skillSystem = null;
+
+            function initSkillSystem() {
+                if (!window.SkillSystem) {
+                    console.error("SkillSystem class not found. Make sure skills.js is loaded.");
+                    return;
+                }
+                
+                skillSystem = new window.SkillSystem(playerCharacter);
+                logDebug("Skill system initialized");
+                
+                // Give player some skill points based on level
+                skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+            }
+
+            // Call initSkillSystem after character is loaded
+            setTimeout(initSkillSystem, 1000); // Ensure all scripts are loaded
+
+            // Add this to the animation loop to update skill cooldowns
+            function updateSkillCooldowns() {
+                if (skillSystem) {
+                    // This will be handled internally by the skill system
+                    // Just ensure the UI is updated
+                    const now = Date.now();
+                    for (const id in skillSystem.cooldowns) {
+                        const elapsed = now - skillSystem.cooldowns[id].startTime;
+                        if (elapsed >= skillSystem.cooldowns[id].duration) {
+                            // Remove expired cooldowns
+                            delete skillSystem.cooldowns[id];
+                            // Update UI
+                            const cooldownElement = document.querySelector(`.skill-cooldown[data-skill="${id}"]`);
+                            if (cooldownElement) {
+                                cooldownElement.style.display = 'none';
+                            }
+                            const progressElement = document.querySelector(`.skill-progress[data-skill="${id}"]`);
+                            if (progressElement) {
+                                progressElement.style.height = '0%';
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Call this in the animate function
+            updateSkillCooldowns();
+
+            // Add this function to handle player death
+            function handlePlayerDeath(player) {
+                // Show death message or effect
+                console.log(`${player.name} has died!`);
+
+                // Respawn the player after a delay
+                setTimeout(() => {
+                    respawnPlayer(player);
+                }, 3000); // Respawn after 3 seconds
+            }
+
+            function respawnPlayer(player) {
+                // Reset health
+                player.health = 100;
+                player.isDead = false;
+
+                // Reset position (you can customize this)
+                player.x = Math.random() * 80 - 40; // Random respawn position
+                player.z = Math.random() * 80 - 40;
+
+                // Update player mesh position
+                if (playerMeshes[player.name]) {
+                    playerMeshes[player.name].position.set(player.x, 2, player.z);
+                }
+
+                // Update player list or UI as needed
+                updatePlayerList();
+            }
+        </script>
+    </body>
+    </html>
