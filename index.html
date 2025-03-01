@@ -149,6 +149,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="character.js"></script>
     <script src="inventory.js"></script>
+    <script src="skills.js"></script>
     <script>
         // Scene setup
         const scene = new THREE.Scene();
@@ -250,33 +251,49 @@
         const gravity = 0.2;
         let isJumping = false;
         
-        document.addEventListener('keydown', onKeyDown, false);
-        document.addEventListener('keyup', onKeyUp, false);
-        
-        function onKeyDown(event) {
+        document.addEventListener('keydown', function(event) {
             switch (event.code) {
                 case 'KeyW': moveForward = true; break;
                 case 'KeyS': moveBackward = true; break;
                 case 'KeyA': moveLeft = true; break;
                 case 'KeyD': moveRight = true; break;
                 case 'Space': 
-                    if (canJump) {
+                    if (playerCharacter.jump()) {
                         velocity = 0.5; // Jump velocity
-                        canJump = false;
                         isJumping = true;
                     }
                     break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerCharacter.startSprinting();
+                    break;
+                case 'ControlLeft':
+                case 'ControlRight':
+                    playerCharacter.duck();
+                    // Adjust camera height immediately
+                    if (!isJumping) camera.position.y = 1;
+                    break;
             }
-        }
+        });
         
-        function onKeyUp(event) {
+        document.addEventListener('keyup', function(event) {
             switch (event.code) {
                 case 'KeyW': moveForward = false; break;
                 case 'KeyS': moveBackward = false; break;
                 case 'KeyA': moveLeft = false; break;
                 case 'KeyD': moveRight = false; break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerCharacter.stopSprinting();
+                    break;
+                case 'ControlLeft':
+                case 'ControlRight':
+                    playerCharacter.standUp();
+                    // Adjust camera height immediately
+                    if (!isJumping) camera.position.y = 2;
+                    break;
             }
-        }
+        });
         
         // Mouse look controls
         let isMouseLocked = false;
@@ -640,7 +657,9 @@
             try {
                 const delta = clock.getDelta();
                 const elapsedTime = clock.getElapsedTime();
-                const moveSpeed = 5 * delta;
+                
+                // Get move speed from character (considers sprinting)
+                const moveSpeed = playerCharacter.getCurrentSpeed() * delta;
                 
                 // Log occasional debug info
                 if (Math.floor(elapsedTime) % 10 === 0 && Math.floor(elapsedTime) !== lastLoggedTime) {
@@ -692,11 +711,11 @@
                         camera.position.y = 2;
                         velocity = 0;
                         isJumping = false;
-                        canJump = true;
+                        playerCharacter.land(); // Reset jump count when landing
                     }
                 } else {
                     // Keep player on the ground when not jumping
-                    camera.position.y = 2;
+                    camera.position.y = playerCharacter.isDucking ? 1 : 2; // Lower camera when ducking
                 }
                 
                 // Update server with player position (limit frequency)
@@ -710,6 +729,9 @@
                 
                 // Check for loot collection
                 checkLootCollection();
+                
+                // Update skill cooldowns
+                updateSkillCooldowns();
                 
                 // Render scene
                 renderer.render(scene, camera);
@@ -949,9 +971,8 @@
 
         mobileJump.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            if (canJump) {
+            if (playerCharacter.jump()) {
                 velocity = 0.5;
-                canJump = false;
                 isJumping = true;
             }
         });
@@ -1526,7 +1547,7 @@
                 );
                 
                 if (distanceToEnemy < 3) { // Attack range
-                    // Deal damage based on player strength
+                    // Deal damage to player
                     enemy.health -= playerCharacter.strength / 2;
                     
                     // Show damage number above enemy
@@ -1951,7 +1972,12 @@
         let skillSystem = null;
 
         function initSkillSystem() {
-            skillSystem = new SkillSystem(playerCharacter);
+            if (!window.SkillSystem) {
+                console.error("SkillSystem class not found. Make sure skills.js is loaded.");
+                return;
+            }
+            
+            skillSystem = new window.SkillSystem(playerCharacter);
             logDebug("Skill system initialized");
             
             // Give player some skill points based on level
@@ -1959,14 +1985,35 @@
         }
 
         // Call initSkillSystem after character is loaded
-        initSkillSystem();
+        setTimeout(initSkillSystem, 1000); // Ensure all scripts are loaded
 
         // Add this to the animation loop to update skill cooldowns
         function updateSkillCooldowns() {
             if (skillSystem) {
                 // This will be handled internally by the skill system
+                // Just ensure the UI is updated
+                const now = Date.now();
+                for (const id in skillSystem.cooldowns) {
+                    const elapsed = now - skillSystem.cooldowns[id].startTime;
+                    if (elapsed >= skillSystem.cooldowns[id].duration) {
+                        // Remove expired cooldowns
+                        delete skillSystem.cooldowns[id];
+                        // Update UI
+                        const cooldownElement = document.querySelector(`.skill-cooldown[data-skill="${id}"]`);
+                        if (cooldownElement) {
+                            cooldownElement.style.display = 'none';
+                        }
+                        const progressElement = document.querySelector(`.skill-progress[data-skill="${id}"]`);
+                        if (progressElement) {
+                            progressElement.style.height = '0%';
+                        }
+                    }
+                }
             }
         }
+
+        // Call this in the animate function
+        updateSkillCooldowns();
     </script>
 </body>
 </html>
