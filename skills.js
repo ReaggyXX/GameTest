@@ -199,6 +199,53 @@ class SkillSystem {
                 return true;
             }
         }));
+
+        // Add the Sword Slash skill
+        this.addSkill(new Skill({
+            id: 'swordSlash',
+            name: 'Sword Slash',
+            description: 'A powerful slash with your sword.',
+            icon: '⚔️',
+            color: '#e74c3c',
+            level: 1,
+            maxLevel: 5,
+            cooldown: 2,
+            manaCost: 5,
+            requiredLevel: 1,
+            effect: (character) => {
+                // Create sword slash effect
+                this.createSwordSlashEffect();
+                
+                // Calculate damage based on character's strength
+                const damage = 10 + (character.strength / 2);
+                
+                // Apply damage to nearby enemies
+                if (window.enemies) {
+                    for (const enemy of window.enemies) {
+                        if (enemy.isDead) continue;
+
+                        const distance = enemy.mesh.position.distanceTo(window.camera.position);
+                        if (distance < 2) { // Adjust the attack range as needed
+                            enemy.health -= damage;
+
+                            // Show damage number
+                            if (typeof showEnemyDamageNumber === 'function') {
+                                showEnemyDamageNumber(enemy, damage);
+                            }
+
+                            // Check if enemy is dead
+                            if (enemy.health <= 0) {
+                                enemy.isDead = true;
+                                // Handle enemy death (e.g., respawn)
+                                handleEnemyDeath(enemy);
+                            }
+                        }
+                    }
+                }
+                
+                return true; // Indicate that the skill was successfully activated
+            }
+        }));
     }
     
     addSkill(skill) {
@@ -760,6 +807,16 @@ class SkillSystem {
             // K key to open skills panel
             if (e.code === 'KeyK') {
                 this.toggleSkillsPanel();
+            }
+        });
+
+        // Bind mouse button 1 to activate sword slash
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // 0 is the left mouse button
+                const swordSlashSkill = this.getSkill('swordSlash'); // Assuming you have a swordSlash skill
+                if (swordSlashSkill) {
+                    this.activateSkill(swordSlashSkill.id);
+                }
             }
         });
     }
