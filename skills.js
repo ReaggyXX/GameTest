@@ -1044,7 +1044,48 @@ class SkillSystem {
             distanceTraveled += speed;
             
             // Check for collision with enemies
-            // (Collision detection logic goes here)
+            if (window.enemies) {
+                for (const enemy of window.enemies) {
+                    if (enemy.isDead) continue;
+
+                    const distance = fireball.position.distanceTo(enemy.mesh.position);
+                    if (distance < 1.5) { // Adjust the hit radius as needed
+                        // Hit enemy
+                        enemy.health -= damage;
+
+                        // Show damage number
+                        if (typeof showEnemyDamageNumber === 'function') {
+                            showEnemyDamageNumber(enemy, damage);
+                        }
+
+                        // Create explosion effect
+                        this.createFireballExplosion(fireball.position.clone());
+
+                        // Check if enemy is dead
+                        if (enemy.health <= 0) {
+                            enemy.isDead = true;
+
+                            // Give player experience
+                            const xpGained = 20;
+                            this.character.gainExperience(xpGained);
+
+                            // Show XP gained
+                            if (typeof showXpGainedMessage === 'function') {
+                                showXpGainedMessage(xpGained);
+                            }
+
+                            // Create death effect
+                            if (typeof createDeathEffect === 'function') {
+                                createDeathEffect(enemy.mesh.position);
+                            }
+                        }
+
+                        // Remove fireball
+                        window.scene.remove(fireball);
+                        return;
+                    }
+                }
+            }
             
             // Check if fireball has traveled max distance
             if (distanceTraveled >= maxDistance) {
