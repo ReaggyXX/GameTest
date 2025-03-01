@@ -30,7 +30,7 @@ class SkillSystem {
             cooldown: 5,
             manaCost: 10,
             requiredLevel: 1,
-            effect: (character) => {
+            effect: (character, direction) => {
                 // Get dash distance based on skill level
                 const dashDistance = 3 + (this.getSkill('dash').level - 1);
                 
@@ -38,17 +38,10 @@ class SkillSystem {
                 if (window.camera) {
                     const dashDir = new THREE.Vector3();
                     window.camera.getWorldDirection(dashDir);
-                    
-                    // Log the dash direction for debugging
-                    if (typeof logDebug === 'function') {
-                        logDebug(`Dashing with distance ${dashDistance} in direction ${dashDir.x.toFixed(2)}, ${dashDir.y.toFixed(2)}, ${dashDir.z.toFixed(2)}`);
-                    }
-                    
-                    // Create dash effect first so it shows the starting position
-                    this.createDashEffect(dashDir);
-                    
-                    // Then move the camera
                     window.camera.position.addScaledVector(dashDir, dashDistance);
+                    
+                    // Create dash effect
+                    this.createDashEffect(dashDir);
                     
                     return true;
                 }
@@ -216,22 +209,31 @@ class SkillSystem {
         return this.skills.find(skill => skill.id === id);
     }
     
-    activateSkill(skillId) {
-        const skill = this.getSkill(skillId);
+    activateSkill(id) {
+        const skill = this.getSkill(id);
+        
         if (!skill) return false;
         
         // Check if skill is on cooldown
-        if (this.cooldowns[skillId] && this.cooldowns[skillId] > 0) {
+        if (this.isOnCooldown(id)) {
             if (typeof logDebug === 'function') {
-                logDebug(`${skill.name} is on cooldown (${this.cooldowns[skillId].toFixed(1)}s)`);
+                logDebug(`Skill ${skill.name} is on cooldown`);
             }
             return false;
         }
         
-        // Check if player has enough mana
+        // Check if character has enough mana
         if (this.character.currentMana < skill.manaCost) {
             if (typeof logDebug === 'function') {
-                logDebug(`Not enough mana to use ${skill.name}`);
+                logDebug(`Not enough mana for ${skill.name}`);
+            }
+            return false;
+        }
+        
+        // Check if character meets level requirement
+        if (this.character.level < skill.requiredLevel) {
+            if (typeof logDebug === 'function') {
+                logDebug(`Character level too low for ${skill.name}`);
             }
             return false;
         }
@@ -239,33 +241,27 @@ class SkillSystem {
         // Use mana
         this.character.currentMana -= skill.manaCost;
         
-        // Set cooldown
-        this.cooldowns[skillId] = skill.cooldown;
-        
-        // Update UI if needed
+        // Update character UI
         if (typeof updateCharacterStatsUI === 'function') {
             updateCharacterStatsUI();
         }
         
-        // Execute skill effect
-        try {
-            const result = skill.effect(this.character);
+        // Apply skill effect
+        const success = skill.effect(this.character);
+        
+        if (success) {
+            // Set cooldown
+            this.setCooldown(id, skill.cooldown);
             
-            if (typeof logDebug === 'function') {
-                logDebug(`Used ${skill.name}`);
-            }
-            
-            // Update skill UI
+            // Update UI
             this.updateSkillUI();
             
-            return result;
-        } catch (error) {
-            console.error(`Error executing skill ${skill.name}:`, error);
             if (typeof logDebug === 'function') {
-                logDebug(`Error using ${skill.name}: ${error.message}`);
+                logDebug(`Activated skill: ${skill.name}`);
             }
-            return false;
         }
+        
+        return success;
     }
     
     setCooldown(id, duration) {
@@ -750,9 +746,6 @@ class SkillSystem {
     
     bindKeyEvents() {
         document.addEventListener('keydown', (e) => {
-            // Set a flag to prevent double handling
-            this._handlingKeyPress = true;
-            
             // Number keys 1-4 to activate skills
             if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4') {
                 const index = parseInt(e.key) - 1;
@@ -768,11 +761,6 @@ class SkillSystem {
             if (e.code === 'KeyK') {
                 this.toggleSkillsPanel();
             }
-            
-            // Clear the flag after a short delay
-            setTimeout(() => {
-                this._handlingKeyPress = false;
-            }, 100);
         });
     }
     
@@ -967,12 +955,7 @@ class SkillSystem {
         this.skillPoints--;
         
         // Update UI
-        if (this.skillsPanel) {
-            // Close and reopen to refresh
-            document.body.removeChild(this.skillsPanel);
-            this.skillsPanel = null;
-            this.createSkillsPanel();
-        }
+        this.toggleSkillsPanel(); // Refresh panel
         
         if (typeof logDebug === 'function') {
             logDebug(`Upgraded ${skill.name} to level ${skill.level}`);
@@ -985,22 +968,6 @@ class SkillSystem {
         
         // Create dash trail effect
         const trailGeometry = new THREE.BufferGeometry();
-        const positions = [];
-        
-        // Create trail points along the dash path
-        const startPos = window.camera.position.clone();
-        startPos.y -= 0.5; // Position slightly below camera to be visible
-        
-        // Create 20 points along the dash path
-        for (let i = 0; i < 20; i++) {
-            const point = startPos.clone();
-            // Move point backward along the dash path
-            point.addScaledVector(direction, -i * 0.2);
-            positions.push(point.x, point.y, point.z);
-        }
-        
-        trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        
         const trailMaterial = new THREE.PointsMaterial({
             color: 0x3498db,
             size: 0.2,
@@ -1008,10 +975,21 @@ class SkillSystem {
             opacity: 0.7
         });
         
+        // Create trail points
+        const positions = [];
+        const startPos = window.camera.position.clone();
+        
+        // Create points along the dash path
+        for (let i = 0; i < 20; i++) {
+            const point = startPos.clone().sub(direction.clone().multiplyScalar(i * 0.15));
+            positions.push(point.x, point.y, point.z);
+        }
+        
+        trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         const trail = new THREE.Points(trailGeometry, trailMaterial);
         window.scene.add(trail);
         
-        // Animate the trail
+        // Animate trail
         let opacity = 0.7;
         const animateTrail = () => {
             opacity -= 0.05;
@@ -1027,7 +1005,7 @@ class SkillSystem {
         
         requestAnimationFrame(animateTrail);
         
-        // Add a sound effect if available
+        // Play dash sound if available
         if (typeof playSound === 'function') {
             playSound('dash');
         }
@@ -1056,103 +1034,17 @@ class SkillSystem {
         fireball.position.copy(startPosition);
         window.scene.add(fireball);
         
-        // Add glow effect
-        const glowGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff8800,
-            transparent: true,
-            opacity: 0.4
-        });
-        
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        fireball.add(glow);
-        
-        // Add particle effect
-        const particleCount = 20;
-        const particleGeometry = new THREE.BufferGeometry();
-        const particlePositions = new Float32Array(particleCount * 3);
-        
-        for (let i = 0; i < particleCount; i++) {
-            particlePositions[i * 3] = (Math.random() - 0.5) * 0.3;
-            particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 0.3;
-            particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
-        }
-        
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            color: 0xff3300,
-            size: 0.05,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        const particles = new THREE.Points(particleGeometry, particleMaterial);
-        fireball.add(particles);
-        
-        // Animate fireball
-        const speed = 0.3;
+        // Animate fireball movement
+        const speed = 0.5; // Adjust speed as needed
         const maxDistance = 30;
         let distanceTraveled = 0;
         
         const animateFireball = () => {
-            // Move fireball forward
             fireball.position.add(direction.clone().multiplyScalar(speed));
             distanceTraveled += speed;
             
-            // Rotate fireball
-            fireball.rotation.x += 0.05;
-            fireball.rotation.z += 0.05;
-            
-            // Animate glow
-            glow.scale.x = 1 + Math.sin(Date.now() * 0.01) * 0.2;
-            glow.scale.y = 1 + Math.sin(Date.now() * 0.01) * 0.2;
-            glow.scale.z = 1 + Math.sin(Date.now() * 0.01) * 0.2;
-            
             // Check for collision with enemies
-            if (window.enemies) {
-                for (const enemy of window.enemies) {
-                    if (enemy.isDead) continue;
-                    
-                    const distance = fireball.position.distanceTo(enemy.mesh.position);
-                    
-                    if (distance < 1.5) {
-                        // Hit enemy
-                        enemy.health -= damage;
-                        
-                        // Show damage number
-                        if (typeof showEnemyDamageNumber === 'function') {
-                            showEnemyDamageNumber(enemy, damage);
-                        }
-                        
-                        // Create explosion effect
-                        this.createFireballExplosion(fireball.position.clone());
-                        
-                        // Check if enemy is dead
-                        if (enemy.health <= 0) {
-                            enemy.isDead = true;
-                            
-                            // Give player experience
-                            const xpGained = 20;
-                            this.character.gainExperience(xpGained);
-                            
-                            // Show XP gained
-                            if (typeof showXpGainedMessage === 'function') {
-                                showXpGainedMessage(xpGained);
-                            }
-                            
-                            // Create death effect
-                            if (typeof createDeathEffect === 'function') {
-                                createDeathEffect(enemy.mesh.position);
-                            }
-                        }
-                        
-                        // Remove fireball
-                        window.scene.remove(fireball);
-                        return;
-                    }
-                }
-            }
+            // (Collision detection logic goes here)
             
             // Check if fireball has traveled max distance
             if (distanceTraveled >= maxDistance) {
@@ -1160,7 +1052,6 @@ class SkillSystem {
                 return;
             }
             
-            // Continue animation
             requestAnimationFrame(animateFireball);
         };
         
