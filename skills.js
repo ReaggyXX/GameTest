@@ -1307,6 +1307,36 @@ class SkillSystem {
         
         requestAnimationFrame(animateParticles);
     }
+
+    createSwordSlashEffect() {
+        if (!window.scene || !window.camera) return;
+
+        // Create a sword slash shape (a simple line for demonstration)
+        const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+        const slash = new THREE.Mesh(geometry, material);
+
+        // Position the slash in front of the player
+        const direction = new THREE.Vector3();
+        window.camera.getWorldDirection(direction);
+        const startPosition = window.camera.position.clone().add(direction.clone().multiplyScalar(1));
+        slash.position.copy(startPosition);
+        slash.rotation.x = Math.PI / 2; // Rotate to lay flat
+
+        window.scene.add(slash);
+
+        // Animate the slash
+        const animateSlash = () => {
+            slash.scale.y -= 0.1; // Shrink the slash over time
+            if (slash.scale.y <= 0) {
+                window.scene.remove(slash); // Remove the slash when it's gone
+                return;
+            }
+            requestAnimationFrame(animateSlash);
+        };
+
+        requestAnimationFrame(animateSlash);
+    }
 }
 
 // Skill class
