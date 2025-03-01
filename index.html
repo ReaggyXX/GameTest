@@ -147,74 +147,9 @@
     <div id="itemPickupNotification"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="character.js"></script>
+    <script src="inventory.js"></script>
     <script>
-        // Initialize character
-        let playerCharacter = null;
-        let playerInventory = null;
-        let skillSystem = null;
-        
-        // Create character
-        function initializeCharacter() {
-            try {
-                playerCharacter = new Character({
-                    name: playerName || "Player",
-                    health: 100,
-                    maxHealth: 100,
-                    mana: 50,
-                    maxMana: 50,
-                    strength: 10,
-                    defense: 5,
-                    level: 1,
-                    experience: 0
-                });
-                
-                // Make it globally accessible
-                window.playerCharacter = playerCharacter;
-                
-                logDebug("Character initialized");
-                
-                // Now initialize inventory and skills
-                initializeInventory();
-                initializeSkills();
-            } catch (error) {
-                logDebug("Error initializing character: " + error.message);
-                // Try again in a moment
-                setTimeout(initializeCharacter, 500);
-            }
-        }
-        
-        // Initialize inventory
-        function initializeInventory() {
-            try {
-                playerInventory = new Inventory();
-                playerInventory.addItem(Item.createApple());
-                logDebug("Inventory system initialized");
-            } catch (error) {
-                logDebug("Error initializing inventory: " + error.message);
-            }
-        }
-        
-        // Initialize skills
-        function initializeSkills() {
-            try {
-                skillSystem = new SkillSystem(playerCharacter);
-                skillSystem.skillPoints = 3; // Give some skill points to start
-                
-                // Assign dash to slot 1 by default
-                const dashSkill = skillSystem.getSkill('dash');
-                if (dashSkill) {
-                    skillSystem.assignSkillToSlot('dash', 0);
-                }
-                
-                logDebug("Skill system initialized");
-            } catch (error) {
-                logDebug("Error initializing skills: " + error.message);
-            }
-        }
-        
-        // Start initialization after a short delay
-        setTimeout(initializeCharacter, 1000);
-
         // Scene setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb); // Sky blue background
@@ -1591,7 +1526,7 @@
                 );
                 
                 if (distanceToEnemy < 3) { // Attack range
-                    // Deal damage to player
+                    // Deal damage based on player strength
                     enemy.health -= playerCharacter.strength / 2;
                     
                     // Show damage number above enemy
@@ -1899,6 +1834,22 @@
         // Call this function after scene setup
         testSceneRendering();
 
+        // Add inventory initialization after character initialization
+        let playerInventory = null;
+        
+        // Initialize inventory after character is loaded
+        function initInventory() {
+            playerInventory = new Inventory();
+            
+            // Add some starter items
+            playerInventory.addItem(Item.createApple());
+            
+            logDebug("Inventory system initialized");
+        }
+        
+        // Call initInventory after character is loaded
+        initInventory();
+
         // Add loot dropping functionality
         function dropLoot(position) {
             // Create a random item
@@ -1994,9 +1945,28 @@
                 // This will be handled by the inventory class
             }
         });
+
+        // Add this after initializing the inventory
+        // Initialize skill system
+        let skillSystem = null;
+
+        function initSkillSystem() {
+            skillSystem = new SkillSystem(playerCharacter);
+            logDebug("Skill system initialized");
+            
+            // Give player some skill points based on level
+            skillSystem.skillPoints = Math.max(0, playerCharacter.level - 1);
+        }
+
+        // Call initSkillSystem after character is loaded
+        initSkillSystem();
+
+        // Add this to the animation loop to update skill cooldowns
+        function updateSkillCooldowns() {
+            if (skillSystem) {
+                // This will be handled internally by the skill system
+            }
+        }
     </script>
-    <script src="character.js"></script>
-    <script src="inventory.js"></script>
-    <script src="skills.js"></script>
 </body>
 </html>
