@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import PlayerEntity from '../entities/playerEntity.js'; // Assuming you have a PlayerEntity class
 
 class GameScene {
     constructor(game, ui, network) {
@@ -22,7 +23,7 @@ class GameScene {
         directionalLight.position.set(1, 1, 1);
         this.scene.add(directionalLight);
 
-        // Player setup
+        // Player management
         this.players = {}; // Store other players
     }
 
