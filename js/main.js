@@ -19,4 +19,4 @@ async function init() {
     game.start();
 }
 
-init();
+init()
