@@ -1,0 +1,53 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+canvas {
+    display: block;
+}
+
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allows clicks to pass through to the canvas */
+    z-index: 10; /* Ensure UI is on top */
+    color: white;
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.menu button {
+    pointer-events: auto; /* Make buttons clickable */
+    padding: 10px 20px;
+    margin: 5px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
+
+#lobby-list {
+    pointer-events: auto;
+}
+
+#lobby-list-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
