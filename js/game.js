@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import Player from '../player.js';
-import Controls from '../controls.js';
+import Player from '../js/playerEntity.js';
+import Controls from '../js/controls.js';
 
 class Game {
     constructor(network, ui) {

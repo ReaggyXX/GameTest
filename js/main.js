@@ -3,7 +3,8 @@ import UI from './ui.js';
 import Network from './network.js';
 import MenuScene from './scenes/menuScene.js';
 import LobbyScene from './scenes/lobbyScene.js';
-import GameScene from './scenes/gameScene.js';
+import GameScene from './scenes/gameScene.js';   
+
 
 async function init() {
     const network = new Network();
