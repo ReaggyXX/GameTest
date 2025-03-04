@@ -187,7 +187,7 @@
             scene.add(hemisphereLight);
             
             // Ground
-            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
             const groundMaterial = new THREE.MeshStandardMaterial({
                 color: 0x336633,
                 side: THREE.DoubleSide,
@@ -215,30 +215,42 @@
             createBuilding(-8, 12, 6, 10, 6, 0x88ff88);
             createBuilding(12, 10, 8, 15, 8, 0xffff88);
             
-            // Add trees
-            function createTree(x, z) {
-                // Tree trunk
-                const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
-                const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-                trunk.position.set(x, 1, z);
-                
-                // Tree top
-                const topGeometry = new THREE.ConeGeometry(2, 4, 8);
-                const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-                const top = new THREE.Mesh(topGeometry, topMaterial);
-                top.position.set(x, 4, z);
-                
-                scene.add(trunk);
-                scene.add(top);
-            }
-            
-            // Create some trees
-            createTree(-15, 0);
-            createTree(15, 5);
-            createTree(0, 15);
-            createTree(-5, -15);
-            createTree(20, -20);
+                  
+// Add trees
+function createTree(x, z) {
+    // --- Variation in Size ---
+    const trunkRadius = 0.5 + (Math.random() * 0.2 - 0.1); // +/- 0.1 variation
+    const trunkHeight = 2 + (Math.random() * 0.5 - 0.25); // +/- 0.25 variation
+    const topRadius = 2 + (Math.random() * 0.5 - 0.25);
+    const topHeight = 4 + (Math.random() * 1 - 0.5);
+
+    // Tree trunk
+    const trunkGeometry = new THREE.CylinderGeometry(trunkRadius, trunkRadius, trunkHeight, 8);
+    const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.set(x, trunkHeight / 2, z); // Place on the ground (y = trunkHeight / 2)
+    scene.add(trunk);
+
+    // Tree top
+    const topGeometry = new THREE.ConeGeometry(topRadius, topHeight, 8);
+    const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+    const top = new THREE.Mesh(topGeometry, topMaterial);
+    top.position.set(x, trunkHeight + topHeight / 2, z); // Position above the trunk
+    scene.add(top);
+}
+
+function generateForest(areaSize, numTrees) {
+    for (let i = 0; i < numTrees; i++) {
+        // Generate random x and z coordinates within the area
+        const x = (Math.random() * areaSize) - (areaSize / 2); // -areaSize/2 to +areaSize/2
+        const z = (Math.random() * areaSize) - (areaSize / 2);
+        createTree(x, z);
+    }
+}
+
+// --- Example Usage ---
+generateForest(150, 80); // Generate 20 trees within a 50x50 area
+
             
             // Movement controls
             let moveForward = false;
