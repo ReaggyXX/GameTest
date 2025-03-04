@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import PlayerEntity from '../entities/playerEntity.js'; // Assuming you have a PlayerEntity class
+import PlayerEntity from '../entities/playerEntity.js'; // Import the PlayerEntity class
 
 class GameScene {
     constructor(game, ui, network) {
@@ -29,7 +29,6 @@ class GameScene {
 
     show() {
         this.ui.showGameUI();
-        // Additional setup when the scene is shown
     }
 
     hide() {
@@ -37,7 +36,6 @@ class GameScene {
     }
 
     update(deltaTime) {
-        // Update game logic (e.g., player movements, game objects)
         this.updatePlayers(deltaTime);
     }
 
@@ -50,13 +48,13 @@ class GameScene {
         // Update other players
         for (const playerId in this.players) {
             const player = this.players[playerId];
-            player.update(deltaTime); // Assuming player has an update method
+            player.update(deltaTime);
         }
     }
 
     onSceneActivated() {
-        window.gameInstance = this.game; // For network to switch scenes
-        window.uiInstance = this.ui; // Make UI accessible for network responses
+        window.gameInstance = this.game;
+        window.uiInstance = this.ui;
     }
 
     onWindowResize(renderer) {
@@ -64,14 +62,12 @@ class GameScene {
     }
 
     spawnPlayer(playerId, position) {
-        // Create a new player entity in the scene
-        const playerEntity = new PlayerEntity(playerId, position); // Assuming PlayerEntity is defined
+        const playerEntity = new PlayerEntity(playerId, position);
         this.players[playerId] = playerEntity;
-        this.scene.add(playerEntity.mesh); // Add player mesh to the scene
+        this.scene.add(playerEntity.mesh);
     }
 
     removePlayer(playerId) {
-        // Remove player from the scene
         const player = this.players[playerId];
         if (player) {
             this.scene.remove(player.mesh);
